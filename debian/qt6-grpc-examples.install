@@ -1,0 +1,7 @@
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/grpcchatclient
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/grpcchatserver
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/magic8ball/SimpleGrpcServer
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/magic8ball/magic8ball
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/libprotobuf_sensors.so
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/protobuf_sensor_emulator
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/protobuf_sensors_client

@@ -1,0 +1,9 @@
+Document: qt6-grpc-manual
+Title: Qt 6 gRPC
+Author: The Qt Company Ltd
+Abstract: This is the HTML documentation for Qt 6 gRPC library
+Section: Programming/C++
+
+Format: HTML
+Index: /usr/share/doc/qt6-grpc-doc-html/html/qtgrpc/qtgrpc.index
+Files: /usr/share/doc/qt6-grpc-doc-html/html/qtgrpc/*.html

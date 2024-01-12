@@ -1,0 +1,9 @@
+usr/include/${DEB_HOST_MULTIARCH}/qt6/QtGrpc/6.*/QtGrpc/private/*.h
+usr/include/${DEB_HOST_MULTIARCH}/qt6/QtProtobuf/6.*/QtProtobuf/private/*.h
+usr/include/${DEB_HOST_MULTIARCH}/qt6/QtProtobufQtCoreTypes/6.*/QtProtobufQtCoreTypes/private/*.h
+usr/include/${DEB_HOST_MULTIARCH}/qt6/QtProtobufQtGuiTypes/6.*/QtProtobufQtGuiTypes/private/*.h
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_grpc_private.pri
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_protobuf_private.pri
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_protobufqtcoretypes_private.pri
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_protobufqtguitypes_private.pri
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_protobufwellknowntypes_private.pri
