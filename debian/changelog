@@ -1,5 +1,21 @@
-template-repository (1.0-1) unstable; urgency=medium
+qt6-grpc (6.6.1-2) experimental; urgency=medium
 
-  * Initial release
+  [ Patrick Franz ]
+  * Update symbols from buildlogs.
 
- -- Tsic404 <liuheng@deepin.org>  Sat, 28 Jan 2023 13:46:49 +0800
+ -- Patrick Franz <deltaone@debian.org>  Wed, 10 Jan 2024 00:07:34 +0100
+
+qt6-grpc (6.6.1-1) experimental; urgency=medium
+
+  [ Patrick Franz ]
+  * New upstream release (6.6.1).
+  * Bump Qt B-Ds to 6.6.1.
+  * Update symbols from buildlogs.
+
+ -- Patrick Franz <deltaone@debian.org>  Tue, 09 Jan 2024 20:13:29 +0100
+
+qt6-grpc (6.6.0-1) experimental; urgency=medium
+
+  * Initial release (Closes: #1057015).
+
+ -- Patrick Franz <deltaone@debian.org>  Mon, 04 Dec 2023 18:36:56 +0100
