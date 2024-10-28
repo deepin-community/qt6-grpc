@@ -1,6 +1,6 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include "qtcoretypes.qpb.h"
 
@@ -21,7 +21,7 @@ class QtProtobufQtTypesQtCoreTest : public QObject
 {
     Q_OBJECT
 
-private slots:
+private Q_SLOTS:
     void initTestCase();
     void qUrl();
     void qChar();
@@ -69,7 +69,7 @@ private:
 
 void QtProtobufQtTypesQtCoreTest::initTestCase()
 {
-    QtProtobuf::qRegisterProtobufQtCoreTypes();
+    QtProtobuf::registerProtobufQtCoreTypes();
 }
 
 using namespace qtprotobufnamespace::qttypes::tests;

@@ -1,6 +1,6 @@
 // Copyright (C) 2022 The Qt Company Ltd.
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include "duplicated_metatypes.qpb.h"
 
@@ -10,13 +10,13 @@
 class QtProtobufDuplicatedMetatypesTest : public QObject
 {
     Q_OBJECT
-private slots:
-    void SimpleTest();
+private Q_SLOTS:
+    void simpleTest();
 };
 
 using namespace qtprotobufnamespace::duplicated_metatypes;
 
-void QtProtobufDuplicatedMetatypesTest::SimpleTest()
+void QtProtobufDuplicatedMetatypesTest::simpleTest()
 {
     qProtobufAssertMessagePropertyRegistered<Message1, Message1::OptsEntry>(1, "qtprotobufnamespace::duplicated_metatypes::Message1::OptsEntry", "opts");
     qProtobufAssertMessagePropertyRegistered<Message2, Message2::OptsEntry>(1, "qtprotobufnamespace::duplicated_metatypes::Message2::OptsEntry", "opts");

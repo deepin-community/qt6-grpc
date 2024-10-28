@@ -1,6 +1,6 @@
 // Copyright (C) 2022 The Qt Company Ltd.
 // Copyright (C) 2022 Alexey Edelev <semlanik@gmail.com>
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include "extranamespace.qpb.h"
 
@@ -14,18 +14,18 @@ using namespace MyTestNamespace::qtprotobufnamespace::tests;
 class QtProtobufExtraNamespaceTest : public QObject
 {
     Q_OBJECT
-private slots:
-    void EmptyMessageTest();
-    void ComplexMessageTest();
+private Q_SLOTS:
+    void emptyMessageTest();
+    void complexMessageTest();
 };
 
-void QtProtobufExtraNamespaceTest::EmptyMessageTest()
+void QtProtobufExtraNamespaceTest::emptyMessageTest()
 {
-    QCOMPARE(EmptyMessage::propertyOrdering.fieldCount(), 0);
+    QCOMPARE(EmptyMessage::staticPropertyOrdering.fieldCount(), 0);
     QCOMPARE(EmptyMessage::staticMetaObject.propertyCount(), 0);
 }
 
-void QtProtobufExtraNamespaceTest::ComplexMessageTest()
+void QtProtobufExtraNamespaceTest::complexMessageTest()
 {
     const char *propertyName = "testComplexField_p";
     qProtobufAssertMessagePropertyRegistered<ComplexMessage, SimpleStringMessage*>(

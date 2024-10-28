@@ -1,5 +1,5 @@
 # Copyright (C) 2023 The Qt Company Ltd.
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -18,6 +18,12 @@ if(NOT TARGET WrapgRPC::WrapgRPCPlugin OR NOT TARGET WrapProtoc::WrapProtoc
     OR NOT TARGET WrapgRPC::WrapLibgRPC)
     message(WARNING "Dependencies of QtGrpc test server not found. Skipping.")
     return()
+endif()
+
+if(MINGW)
+    message(WARNING "${PROJECT_NAME} uses reference grpc++ library that doesn't officially support"
+        " MinGW. Please use the MSVC compiler to build this example. The correct work is not"
+        " guaranteed otherwise.")
 endif()
 
 set(proto_files "${CMAKE_CURRENT_LIST_DIR}/../proto/simplechat.proto")

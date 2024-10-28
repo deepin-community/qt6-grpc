@@ -1,6 +1,6 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include "qtguitypes.qpb.h"
 
@@ -23,9 +23,9 @@ class QtProtobufQtTypesQtGuiTest : public QObject
 {
     Q_OBJECT
 
-private slots:
+private Q_SLOTS:
     void initTestCase() {
-        QtProtobuf::qRegisterProtobufQtGuiTypes();
+        QtProtobuf::registerProtobufQtGuiTypes();
     }
 
     void qRgba64();

@@ -1,5 +1,7 @@
-#include <QtProtobuf/qprotobufserializer.h>
+
 #include "repeatednonpackedmessages.qpb.h"
+
+#include <QtProtobuf/qprotobufregistration.h>
 
 namespace qtprotobufnamespace::tests {
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedNonPackedIntMessage(qRegisterProtobufType<RepeatedNonPackedIntMessage>);
@@ -16,5 +18,6 @@ static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedNonPackedBoolMes
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedNonPackedDoubleMessage(qRegisterProtobufType<RepeatedNonPackedDoubleMessage>);
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedNonPackedFloatMessage(qRegisterProtobufType<RepeatedNonPackedFloatMessage>);
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarNonPackedIntMessageWithExtraMember(qRegisterProtobufType<NonPackedIntMessageWithExtraMember>);
+static bool RegisterRepeatednonpackedmessagesProtobufTypes = [](){ qRegisterProtobufTypes(); return true; }();
 } // namespace qtprotobufnamespace::tests
 

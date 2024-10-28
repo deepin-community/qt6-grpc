@@ -1,10 +1,11 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
-#include "qtprotobufqtcoretypes.h"
-#include "qtprotobufqttypescommon_p.h"
-#include "private/QtCore.qpb.h"
+#include <QtProtobufQtCoreTypes/qtprotobufqtcoretypes.h>
+
+#include <QtProtobufQtCoreTypes/private/QtCore.qpb.h>
+#include <QtProtobufQtCoreTypes/private/qtprotobufqttypescommon_p.h>
 
 #include <QtCore/qurl.h>
 #include <QtCore/qchar.h>
@@ -107,7 +108,7 @@ static std::optional<QtProtobufPrivate::QtCore::QDate> convert(const QDate &from
 static QTimeZone::Initialization getTimeZoneInitialization(
         QtProtobufPrivate::QtCore::QTimeZone::TimeSpec protoSpec)
 {
-    return protoSpec == QtProtobufPrivate::QtCore::QTimeZone::LocalTime
+    return protoSpec == QtProtobufPrivate::QtCore::QTimeZone::TimeSpec::LocalTime
             ? QTimeZone::LocalTime : QTimeZone::UTC;
 }
 
@@ -149,14 +150,14 @@ static std::optional<QtProtobufPrivate::QtCore::QTimeZone> convert(const QTimeZo
         result.setIanaId(from.id());
 #else
         qInfo() << "Result will be treated like UTC.";
-        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::UTC);
+        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::TimeSpec::UTC);
 #endif // QT_CONFIG(timezone)
         break;
     case Qt::LocalTime:
-        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::LocalTime);
+        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::TimeSpec::LocalTime);
         break;
     case Qt::UTC:
-        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::UTC);
+        result.setTimeSpec(QtProtobufPrivate::QtCore::QTimeZone::TimeSpec::UTC);
         break;
     case Qt::OffsetFromUTC:
         result.setOffsetSeconds(from.fixedSecondsAheadOfUtc());
@@ -317,9 +318,11 @@ static std::optional<QtProtobufPrivate::QtCore::QVersionNumber> convert(const QV
         return std::nullopt;
 
     QtProtobufPrivate::QtCore::QVersionNumber version;
+    QtProtobuf::int32List newSegments;
     const auto segments = from.segments();
     for (const auto &segment : segments)
-        version.segments().append(segment);
+        newSegments.append(segment);
+    version.setSegments(std::move(newSegments));
     return version;
 }
 
@@ -328,7 +331,7 @@ namespace QtProtobuf {
 /*!
     Registers serializers for the Qt::ProtobufQtCoreTypes library.
 */
-void qRegisterProtobufQtCoreTypes() {
+void registerProtobufQtCoreTypes() {
     QtProtobufPrivate::registerQtTypeHandler<QUrl, QtProtobufPrivate::QtCore::QUrl>();
     QtProtobufPrivate::registerQtTypeHandler<QChar, QtProtobufPrivate::QtCore::QChar>();
     QtProtobufPrivate::registerQtTypeHandler<QUuid, QtProtobufPrivate::QtCore::QUuid>();

@@ -5,39 +5,71 @@
 #ifndef QGRPCSTREAM_H
 #define QGRPCSTREAM_H
 
-#include <QtCore/QByteArray>
-#include <QtCore/QList>
-#include <QtCore/QString>
 #include <QtGrpc/qgrpcoperation.h>
 #include <QtGrpc/qtgrpcglobal.h>
 
-#include <functional>
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 
-class QAbstractGrpcClient;
-
-class Q_GRPC_EXPORT QGrpcStream final : public QGrpcOperation
+class Q_GRPC_EXPORT QGrpcServerStream final : public QGrpcOperation
 {
     Q_OBJECT
 
 public:
-    explicit QGrpcStream(QLatin1StringView method, QByteArrayView arg,
-                         std::shared_ptr<QAbstractProtobufSerializer> serializer);
-    ~QGrpcStream() override;
-
-    void abort() override;
-
-    QLatin1StringView method() const;
-    QByteArrayView arg() const;
-    void updateData(const QByteArray &data);
+    explicit QGrpcServerStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                               QObject *parent = nullptr);
+    ~QGrpcServerStream() override;
 
 Q_SIGNALS:
     void messageReceived();
 
 private:
-    const std::string m_method;
-    const QByteArray m_arg;
+    Q_DISABLE_COPY_MOVE(QGrpcServerStream)
+
+public:
+    bool event(QEvent *event) override;
+};
+
+class Q_GRPC_EXPORT QGrpcClientStream final : public QGrpcOperation
+{
+    Q_OBJECT
+
+public:
+    explicit QGrpcClientStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                               QObject *parent = nullptr);
+    ~QGrpcClientStream() override;
+
+    void writeMessage(const QProtobufMessage &message);
+    void writesDone();
+
+private:
+    Q_DISABLE_COPY_MOVE(QGrpcClientStream)
+
+public:
+    bool event(QEvent *event) override;
+};
+
+class Q_GRPC_EXPORT QGrpcBidiStream final : public QGrpcOperation
+{
+    Q_OBJECT
+
+public:
+    explicit QGrpcBidiStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                             QObject *parent = nullptr);
+    ~QGrpcBidiStream() override;
+
+    void writeMessage(const QProtobufMessage &message);
+    void writesDone();
+
+Q_SIGNALS:
+    void messageReceived();
+
+private:
+    Q_DISABLE_COPY_MOVE(QGrpcBidiStream)
+
+public:
+    bool event(QEvent *event) override;
 };
 
 QT_END_NAMESPACE

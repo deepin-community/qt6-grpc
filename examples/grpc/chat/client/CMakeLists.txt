@@ -1,5 +1,5 @@
 # Copyright (C) 2023 The Qt Company Ltd.
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 cmake_minimum_required(VERSION 3.16)
 project(GrpcChatClient LANGUAGES CXX)
@@ -10,7 +10,7 @@ endif()
 
 set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/grpc/chat")
 
-find_package(Qt6 REQUIRED COMPONENTS Core Protobuf Grpc Quick)
+find_package(Qt6 REQUIRED COMPONENTS Core Protobuf ProtobufTools Grpc GrpcTools Quick)
 
 qt_standard_project_setup()
 

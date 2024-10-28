@@ -2,145 +2,185 @@
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <qtgrpcglobal_p.h>
+#include <QtGrpc/private/qtgrpclogging_p.h>
+#include <QtGrpc/qgrpcoperation.h>
+#include <QtGrpc/qgrpcoperationcontext.h>
 
-#include <QtCore/qpointer.h>
 #include <QtCore/private/qobject_p.h>
-
-#include "qgrpcoperation.h"
+#include <QtCore/qatomic.h>
+#include <QtCore/qbytearray.h>
+#include <QtCore/qeventloop.h>
+#include <QtCore/qpointer.h>
 
 QT_BEGIN_NAMESPACE
+
+using namespace Qt::StringLiterals;
 
 /*!
     \class QGrpcOperation
     \inmodule QtGrpc
     \brief The QGrpcOperation class implements common logic to
-           handle communication in Grpc channel.
+           handle the gRPC communication from the client side.
 */
 
 /*!
-    \fn template <typename T> T QGrpcOperation::read() const;
-
-    Reads message from raw byte array stored in QGrpcCallReply.
-
-    Returns a copy of the deserialized message or, on failure,
-    a default-constructed message.
-*/
-
-/*!
-    \fn void QGrpcOperation::finished()
+    \fn void QGrpcOperation::finished(const QGrpcStatus &status)
 
     This signal indicates the end of communication for this call.
 
-    If signal emitted by stream this means that stream is successfully
-    closed either by client or server.
-*/
+    If this signal is emitted the respective operation when it's finished with
+    the respective \a status.
 
-/*!
-    \fn void QGrpcOperation::errorOccurred(const QGrpcStatus &status)
-
-    This signal indicates the error occurred during serialization.
-
-    This signal is emitted when error with \a status occurs in channel
-    or during serialization.
+    \note This signal is emitted only once, and in most cases, you will want to
+    disconnect right after receiving it to avoid issues, such as lambda
+    captures not being destroyed after receiving the signal. An easy way to
+    achieve this is by using the Qt::SingleShotConnection \l {Qt::}
+    {ConnectionType}.
 */
 
 class QGrpcOperationPrivate : public QObjectPrivate
 {
     Q_DECLARE_PUBLIC(QGrpcOperation)
 public:
-    QGrpcOperationPrivate(std::shared_ptr<QAbstractProtobufSerializer> _serializer)
-        : serializer(std::move(_serializer))
+    explicit QGrpcOperationPrivate(std::shared_ptr<QGrpcOperationContext> &&operationContext_)
+        : operationContext(operationContext_)
     {
     }
 
     QByteArray data;
-    QGrpcMetadata metadata;
-    std::shared_ptr<QAbstractProtobufSerializer> serializer;
+    std::shared_ptr<QGrpcOperationContext> operationContext;
+    QAtomicInteger<bool> isFinished{ false };
 };
 
-QGrpcOperation::QGrpcOperation(std::shared_ptr<QAbstractProtobufSerializer> serializer)
-    : QObject(*new QGrpcOperationPrivate(std::move(serializer)))
+QGrpcOperation::QGrpcOperation(std::shared_ptr<QGrpcOperationContext> operationContext,
+                               QObject *parent)
+    : QObject(*new QGrpcOperationPrivate(std::move(operationContext)), parent)
 {
+    Q_D(QGrpcOperation);
+    [[maybe_unused]] bool valid = QObject::connect(d->operationContext.get(),
+                                                   &QGrpcOperationContext::messageReceived, this,
+                                                   [this](const QByteArray &data) {
+                                                       Q_D(QGrpcOperation);
+                                                       d->data = data;
+                                                   });
+    Q_ASSERT_X(valid, "QGrpcOperation::QGrpcOperation",
+               "Unable to make connection to the 'messageReceived' signal");
+
+    valid = QObject::connect(d->operationContext.get(), &QGrpcOperationContext::finished, this,
+                             [this](const QGrpcStatus &status) {
+                                 if (!isFinished()) {
+                                     Q_D(QGrpcOperation);
+                                     d->isFinished.storeRelaxed(true);
+                                     emit this->finished(status);
+                                 }
+                             });
+    Q_ASSERT_X(valid, "QGrpcOperation::QGrpcOperation",
+               "Unable to make connection to the 'finished' signal");
 }
 
 QGrpcOperation::~QGrpcOperation() = default;
 
 /*!
-    Interface for implementation of QAbstractGrpcChannel.
+    \fn template <typename T, QtProtobuf::if_protobuf_message<T> = true> std::optional<T> QGrpcOperation::read() const
 
-    Should be used to write raw data from channel to reply \a data raw data
-    received from channel.
- */
-void QGrpcOperation::setData(const QByteArray &data)
+    Reads a message from a raw byte array stored within this QGrpcOperation
+    instance.
+
+    Returns an optional deserialized message. On failure, \c {std::nullopt} is
+    returned.
+
+    \note This function only participates in overload resolution if \c T is a
+    subclass of QProtobufMessage.
+
+    \sa read
+*/
+
+/*!
+    \since 6.8
+    Reads a message from a raw byte array which is stored within this
+    QGrpcOperation instance.
+
+    The function writes the deserialized value to the \a message pointer.
+
+    If the deserialization is successful, this function returns \c true.
+    Otherwise, it returns \c false.
+
+    \sa read
+*/
+bool QGrpcOperation::read(QProtobufMessage *message) const
 {
-    Q_D(QGrpcOperation);
-    d->data = data;
+    Q_ASSERT_X(message != nullptr, "QGrpcOperation::read",
+               "Can't read to nullptr QProtobufMessage");
+    Q_D(const QGrpcOperation);
+    const auto ser = d->operationContext->serializer();
+    Q_ASSERT_X(ser, "QGrpcOperation", "The serializer is null");
+    if (!ser->deserialize(message, d->data)) {
+        qGrpcWarning() << "Unable to deserialize message(" << qToUnderlying(ser->lastError()) <<"): "
+                       << ser->lastErrorString();
+        return false;
+    }
+    return true;
 }
 
 /*!
-    Interface for implementation of QAbstractGrpcChannel.
-
-    Should be used to write raw data from channel to reply \a data raw data
-    received from channel.
+    T.B.A
 */
-void QGrpcOperation::setData(QByteArray &&data)
+void QGrpcOperation::cancel()
 {
-    Q_D(QGrpcOperation);
-    d->data = std::move(data);
-}
-
-/*!
-    \internal
-    Getter of the data received from the channel.
-*/
-QByteArray QGrpcOperation::data() const
-{
-    return d_func()->data;
-}
-
-/*!
-    Interface for implementation of QAbstractGrpcChannel.
-
-    Should be used to write metadata from channel to reply \a metadata received
-    from channel. For the HTTP2 channels it usually contains the HTTP
-    headers received from the server.
-*/
-void QGrpcOperation::setMetadata(const QGrpcMetadata &metadata)
-{
-    Q_D(QGrpcOperation);
-    d->metadata = metadata;
-}
-
-/*!
-    Interface for implementation of QAbstractGrpcChannel.
-
-    Should be used to write metadata from channel to reply \a metadata received
-    from channel. For the HTTP2 channels it usually contains the HTTP
-    headers received from the server.
-*/
-void QGrpcOperation::setMetadata(QGrpcMetadata &&metadata)
-{
-    Q_D(QGrpcOperation);
-    d->metadata = std::move(metadata);
+    if (!isFinished()) {
+        Q_D(QGrpcOperation);
+        d->isFinished.storeRelaxed(true);
+        emit d->operationContext->cancelRequested();
+        Q_EMIT finished(QGrpcStatus{ QtGrpc::StatusCode::Cancelled,
+                                     tr("Operation is cancelled by client") });
+    }
 }
 
 /*!
     Getter of the metadata received from the channel. For the HTTP2 channels it
     usually contains the HTTP headers received from the server.
 */
-QGrpcMetadata QGrpcOperation::metadata() const
+const QHash<QByteArray, QByteArray> &QGrpcOperation::metadata() const & noexcept
 {
-    return d_func()->metadata;
+    Q_D(const QGrpcOperation);
+    return d->operationContext->serverMetadata();
+}
+
+/*!
+    Getter of the method that this operation was initialized with.
+*/
+QLatin1StringView QGrpcOperation::method() const noexcept
+{
+    Q_D(const QGrpcOperation);
+    return d->operationContext->method();
+}
+
+/*!
+    Returns true when QGrpcOperation finished its workflow,
+    meaning it was finished, canceled, or error occurred, otherwise returns false.
+*/
+bool QGrpcOperation::isFinished() const noexcept
+{
+    Q_D(const QGrpcOperation);
+    return d->isFinished.loadRelaxed();
 }
 
 /*!
     \internal
-    Getter of the serializer that QGrpcOperation was constructed with.
+    \fn const QGrpcOperationContext &QGrpcOperation::context() const &
+    \fn QGrpcOperationContext &QGrpcOperation::context() &
+
+    Returns a reference to the internal operation context.
 */
-std::shared_ptr<QAbstractProtobufSerializer> QGrpcOperation::serializer() const
+const QGrpcOperationContext &QGrpcOperation::context() const & noexcept
 {
-    return d_func()->serializer;
+    Q_D(const QGrpcOperation);
+    return *d->operationContext;
+}
+
+bool QGrpcOperation::event(QEvent *event)
+{
+    return QObject::event(event);
 }
 
 QT_END_NAMESPACE

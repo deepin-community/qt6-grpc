@@ -6,8 +6,10 @@
 #include <QDebug>
 #include <QFile>
 #include <QString>
+#include <QThread>
 
 #include "testservice.grpc.pb.h"
+
 #include <grpc++/grpc++.h>
 
 #include <memory>
@@ -28,6 +30,10 @@ using qtgrpc::tests::TestService;
 // Logic and data behind the server's behavior.
 class TestServiceServiceImpl final : public qtgrpc::tests::TestService::Service
 {
+public:
+    TestServiceServiceImpl(qint64 latency) : m_latency(latency) { }
+
+private:
     grpc::Status testMethod(grpc::ServerContext *, const SimpleStringMessage *request,
                             SimpleStringMessage *response) override;
 
@@ -44,6 +50,105 @@ class TestServiceServiceImpl final : public qtgrpc::tests::TestService::Service
     grpc::Status testMetadata(grpc::ServerContext *,
                                                 const Empty *,
                                                 qtgrpc::tests::Empty *) override;
+
+    grpc::Status
+    testMethodClientStream(::grpc::ServerContext *,
+                           ::grpc::ServerReader<::qtgrpc::tests::SimpleStringMessage> *reader,
+                           ::qtgrpc::tests::SimpleStringMessage *response) override;
+
+    grpc::Status testMethodBiStream(
+            ::grpc::ServerContext *context,
+            ::grpc::ServerReaderWriter<::qtgrpc::tests::SimpleStringMessage,
+                                       ::qtgrpc::tests::SimpleStringMessage> *stream) override;
+    grpc::Status
+    testMethodClientStreamWithDone(::grpc::ServerContext *,
+                           ::grpc::ServerReader<::qtgrpc::tests::SimpleStringMessage> *reader,
+                           ::qtgrpc::tests::SimpleStringMessage *response) override;
+
+    grpc::Status testMethodBiStreamWithDone(
+        ::grpc::ServerContext *context,
+        ::grpc::ServerReaderWriter<::qtgrpc::tests::SimpleStringMessage,
+                                   ::qtgrpc::tests::SimpleStringMessage> *stream) override;
+
+    grpc::Status testMethodSleep(grpc::ServerContext *context,
+                                 const qtgrpc::tests::SleepMessage *request,
+                                 qtgrpc::tests::Empty * /* response */) override
+    {
+        if (request->has_sleeptimems())
+            QThread::msleep(request->sleeptimems());
+
+        if (context->IsCancelled())
+            return { grpc::StatusCode::CANCELLED, "testMethodSleep" };
+        return grpc::Status::OK;
+    }
+
+    grpc::Status
+    testMethodServerStreamSleep(grpc::ServerContext *context,
+                                const qtgrpc::tests::ServerStreamSleepMessage *request,
+                                grpc::ServerWriter<qtgrpc::tests::Empty> *writer) override
+    {
+        size_t count = 0;
+        while (count < request->amountresponses()) {
+            if (request->sleepmessage().has_sleeptimems())
+                QThread::msleep(request->sleepmessage().sleeptimems());
+            writer->Write(qtgrpc::tests::Empty());
+            ++count;
+        }
+
+        if (context->IsCancelled())
+            return { grpc::StatusCode::CANCELLED, "testMethodServerStreamSleep" };
+        return grpc::Status::OK;
+    }
+
+    grpc::Status
+    testMethodClientStreamSleep(grpc::ServerContext *context,
+                                grpc::ServerReader<qtgrpc::tests::SleepMessage> *reader,
+                                qtgrpc::tests::Empty * /* response */) override
+    {
+        qtgrpc::tests::SleepMessage request;
+        while (reader->Read(&request)) {
+            if (request.has_sleeptimems())
+                QThread::msleep(request.sleeptimems());
+        }
+
+        if (context->IsCancelled())
+            return { grpc::StatusCode::CANCELLED, "testMethodClientStreamSleep" };
+        return grpc::Status::OK;
+    }
+
+    grpc::Status
+    testMethodBiStreamSleep(grpc::ServerContext *context,
+                            grpc::ServerReaderWriter<qtgrpc::tests::Empty,
+                                                     qtgrpc::tests::SleepMessage> *stream) override
+    {
+        qtgrpc::tests::SleepMessage request;
+
+        while (stream->Read(&request)) {
+            if (request.has_sleeptimems())
+                QThread::msleep(request.sleeptimems());
+            if (!stream->Write(Empty()))
+                return { grpc::StatusCode::ABORTED, "testMethodBiStreamSleep failed to write" };
+        }
+
+        if (context->IsCancelled())
+            return { grpc::StatusCode::CANCELLED, "testMethodBiStreamSleep" };
+        return grpc::Status::OK;
+    }
+
+    ::grpc::Status replyWithMetadata(::grpc::ServerContext *ctx, const ::qtgrpc::tests::Empty *,
+                                     ::qtgrpc::tests::MetadataMessage *response) override
+    {
+        qInfo() << "replyWithMetadata called";
+        for (const auto &header : ctx->client_metadata()) {
+            auto *headerValue = response->mutable_values()->Add();
+            headerValue->set_key(std::string(header.first.data(), header.first.size()));
+            headerValue->set_value(std::string(header.second.data(), header.second.size()));
+        }
+
+        return Status();
+    }
+
+    qint64 m_latency;
 };
 }
 
@@ -53,7 +158,7 @@ Status TestServiceServiceImpl::testMethod(grpc::ServerContext *, const SimpleStr
     qInfo() << "testMethod called with: " << request->testfieldstring();
     response->set_testfieldstring(request->testfieldstring());
     if (request->testfieldstring() == "sleep") {
-        QThread::msleep(QT_GRPC_TEST_MESSAGE_LATENCY);
+        QThread::msleep(m_latency);
     }
     return Status();
 }
@@ -67,22 +172,22 @@ Status TestServiceServiceImpl::testMethodServerStream(grpc::ServerContext *,
     SimpleStringMessage msg;
 
     msg.set_testfieldstring(request->testfieldstring() + "1");
-    QThread::msleep(QT_GRPC_TEST_MESSAGE_LATENCY);
+    QThread::msleep(m_latency);
     qInfo() << "send back " << (request->testfieldstring() + "1");
     writer->Write(msg);
 
     msg.set_testfieldstring(request->testfieldstring() + "2");
-    QThread::msleep(QT_GRPC_TEST_MESSAGE_LATENCY);
+    QThread::msleep(m_latency);
     qInfo() << "send back " << (request->testfieldstring() + "2");
     writer->Write(msg);
 
     msg.set_testfieldstring(request->testfieldstring() + "3");
-    QThread::msleep(QT_GRPC_TEST_MESSAGE_LATENCY);
+    QThread::msleep(m_latency);
     qInfo() << "send back " << (request->testfieldstring() + "3");
     writer->Write(msg);
 
     msg.set_testfieldstring(request->testfieldstring() + "4");
-    QThread::msleep(QT_GRPC_TEST_MESSAGE_LATENCY);
+    QThread::msleep(m_latency);
     qInfo() << "send back " << (request->testfieldstring() + "4");
     writer->WriteLast(msg, grpc::WriteOptions());
 
@@ -138,28 +243,109 @@ Status TestServiceServiceImpl::testMetadata(grpc::ServerContext *ctx, const Empt
     return Status();
 }
 
-void SecureTestServer::run()
+grpc::Status TestServiceServiceImpl::testMethodClientStream(
+        ::grpc::ServerContext *, ::grpc::ServerReader<::qtgrpc::tests::SimpleStringMessage> *reader,
+        ::qtgrpc::tests::SimpleStringMessage *response)
 {
-    QString server_uri("localhost:60051");
+    ::qtgrpc::tests::SimpleStringMessage req;
+    std::string rspString;
+    for (int i = 0; i < 4; ++i) {
+        if (!reader->Read(&req)) {
+            qInfo() << "Unable to read message from client stream";
+            return grpc::Status(grpc::StatusCode::DATA_LOSS, rspString);
+        }
+        rspString += req.testfieldstring();
+        rspString += std::to_string(i + 1);
+    }
 
-    TestServiceServiceImpl service;
+    response->set_testfieldstring(rspString);
+    return {};
+}
 
-    QFile cfile(":/keys/cert.pem");
+grpc::Status TestServiceServiceImpl::testMethodBiStream(
+        ::grpc::ServerContext *,
+        ::grpc::ServerReaderWriter<::qtgrpc::tests::SimpleStringMessage,
+                                   ::qtgrpc::tests::SimpleStringMessage> *stream)
+{
+    ::qtgrpc::tests::SimpleStringMessage req;
+    for (int i = 0; i < 4; ++i) {
+        if (!stream->Read(&req)) {
+            qInfo() << "Unable to read message from bidirectional stream";
+            return grpc::Status(grpc::StatusCode::DATA_LOSS, "Read failed");
+        }
+        std::string rspString = req.testfieldstring() + std::to_string(i + 1);
+        ::qtgrpc::tests::SimpleStringMessage rsp;
+        rsp.set_testfieldstring(rspString);
+        if (!stream->Write(rsp, {})) {
+            qInfo() << "Unable to write message to bidirectional stream";
+            return grpc::Status(grpc::StatusCode::DATA_LOSS, "Write failed");
+        }
+        QThread::msleep(m_latency);
+    }
+
+    return {};
+}
+
+grpc::Status TestServiceServiceImpl::testMethodClientStreamWithDone(
+    ::grpc::ServerContext *, ::grpc::ServerReader<::qtgrpc::tests::SimpleStringMessage> *reader,
+    ::qtgrpc::tests::SimpleStringMessage *response)
+{
+    ::qtgrpc::tests::SimpleStringMessage req;
+    std::string rspString;
+    int i = 0;
+    while (reader->Read(&req)) {
+        rspString += req.testfieldstring();
+        rspString += std::to_string(++i);
+    }
+
+    response->set_testfieldstring(rspString);
+    return {};
+}
+
+grpc::Status TestServiceServiceImpl::testMethodBiStreamWithDone(
+    ::grpc::ServerContext *,
+    ::grpc::ServerReaderWriter<::qtgrpc::tests::SimpleStringMessage,
+                               ::qtgrpc::tests::SimpleStringMessage> *stream)
+{
+    ::qtgrpc::tests::SimpleStringMessage req;
+    int i = 0;
+    while (stream->Read(&req)) {
+        std::string rspString = req.testfieldstring() + std::to_string(++i);
+        ::qtgrpc::tests::SimpleStringMessage rsp;
+        rsp.set_testfieldstring(rspString);
+        if (!stream->Write(rsp, {})) {
+            qInfo() << "Unable to write message to bidirectional stream";
+            return grpc::Status(grpc::StatusCode::DATA_LOSS, "Write failed");
+        }
+        QThread::msleep(m_latency);
+    }
+
+    return {};
+}
+
+void TestServer::run(qint64 latency)
+{
+    TestServiceServiceImpl service(latency);
+
+    grpc::ServerBuilder builder;
+    QFile cfile(":/assets/cert.pem");
     cfile.open(QFile::ReadOnly);
     QString cert = cfile.readAll();
 
-    QFile kfile(":/keys/key.pem");
+    QFile kfile(":/assets/key.pem");
     kfile.open(QFile::ReadOnly);
     QString key = kfile.readAll();
 
     grpc::SslServerCredentialsOptions opts(GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
     opts.pem_key_cert_pairs.push_back({ key.toStdString(), cert.toStdString() });
 
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort(server_uri.toStdString(), grpc::SslServerCredentials(opts));
+    QString httpURI("127.0.0.1:50051");
+    builder.AddListeningPort(httpURI.toStdString(), grpc::InsecureServerCredentials());
+    QString httpsURI("127.0.0.1:50052");
+    builder.AddListeningPort(httpsURI.toStdString(), grpc::SslServerCredentials(opts));
 #ifndef Q_OS_WINDOWS
-    QString socket_uri("unix:///tmp/test.sock");
-    builder.AddListeningPort(socket_uri.toStdString(), grpc::SslServerCredentials(opts));
+    QString unixUri("unix:///tmp/qtgrpc_test.sock");
+    builder.AddListeningPort(unixUri.toStdString(), grpc::InsecureServerCredentials());
 #endif
     builder.RegisterService(&service);
 
@@ -169,36 +355,9 @@ void SecureTestServer::run()
         return;
     }
 #ifdef Q_OS_WINDOWS
-    qDebug() << "Server listening on " << server_uri;
+    qDebug() << "Server listening on " << httpURI << httpsURI;
 #else
-    qDebug() << "Server listening on " << server_uri << "and" << socket_uri;
-#endif
-
-    server->Wait();
-}
-
-void TestServer::run()
-{
-    QString server_uri("127.0.0.1:50051");
-    TestServiceServiceImpl service;
-
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort(server_uri.toStdString(), grpc::InsecureServerCredentials());
-#ifndef Q_OS_WINDOWS
-    QString socket_uri("unix:///tmp/test.sock");
-    builder.AddListeningPort(socket_uri.toStdString(), grpc::InsecureServerCredentials());
-#endif
-    builder.RegisterService(&service);
-
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    if (!server) {
-        qDebug() << "Creating grpc::Server failed.";
-        return;
-    }
-#ifdef Q_OS_WINDOWS
-    qDebug() << "Server listening on " << server_uri;
-#else
-    qDebug() << "Server listening on " << server_uri << "and" << socket_uri;
+    qDebug() << "Server listening on " << httpURI << httpsURI << "and" << unixUri;
 #endif
     server->Wait();
 }

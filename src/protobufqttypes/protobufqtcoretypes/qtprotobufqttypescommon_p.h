@@ -1,5 +1,5 @@
 // Copyright (C) 2023 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 #ifndef QTPROTOBUFQTTYPESCOMMON_P_H
 #define QTPROTOBUFQTTYPESCOMMON_P_H
@@ -17,11 +17,10 @@
 
 #include <QtProtobufQtCoreTypes/qtprotobufqtcoretypesexports.h>
 
+#include <QtProtobuf/private/qprotobufregistration_p.h>
+#include <QtProtobuf/qabstractprotobufserializer.h>
+#include <QtProtobuf/qprotobufregistration.h>
 #include <QtProtobuf/qtprotobuftypes.h>
-#include <QtProtobuf/qprotobufserializer.h>
-
-#include <QtCore/QVariant>
-#include <QtCore/private/qglobal_p.h>
 
 #include <optional>
 
@@ -40,41 +39,43 @@ template<typename QType, typename PType>
 void registerQtTypeHandler()
 {
     registerHandler(
-            QMetaType::fromType<QType>(),
-            { [](const QProtobufSerializer *serializer, const QVariant &value,
-                 const QProtobufPropertyOrderingInfo &info, QByteArray &buffer) {
-                 auto do_convert = [](const QType &qtype) {
-                     auto res = convert(qtype);
-                     if constexpr (is_optional_v<decltype(res)>) {
-                         return res;
-                     } else {
-                         return std::optional<PType>(std::move(res));
-                     }
-                 };
+        QMetaType::fromType<QType>(),
+        [](QtProtobufPrivate::MessageFieldSerializer serializer, const void *valuePtr,
+           const QProtobufFieldInfo &info) {
+            QtProtobufPrivate::ensureValue(valuePtr);
 
-                 std::optional<PType> object = do_convert(value.value<QType>());
-                 if (object) {
-                     buffer.append(serializer->serializeObject(&(object.value()),
-                                                               PType::propertyOrdering, info));
-                 } else {
-                     warnTypeConversionError();
-                 }
-              },
-              [](const QProtobufSerializer *serializer, QProtobufSelfcheckIterator &it,
-                 QVariant &value) {
-                  PType object;
-                  serializer->deserializeObject(&object, PType::propertyOrdering, it);
-                  auto res = convert(object);
-                  if constexpr (is_optional_v<decltype(res)>) {
-                      if (!res)
-                          warnTypeConversionError();
-                      else
-                          value = QVariant::fromValue<QType>(*res);
-                  } else {
-                      value = QVariant::fromValue<QType>(res);
-                  }
-              }
-            });
+            auto do_convert = [](const QType *qtype) {
+                auto res = convert(*qtype);
+                if constexpr (is_optional_v<decltype(res)>) {
+                    return res;
+                } else {
+                    return std::optional<PType>(std::move(res));
+                }
+            };
+
+            std::optional<PType> object = do_convert(static_cast<const QType *>(valuePtr));
+            if (object) {
+                serializer(&(object.value()), info);
+            } else {
+                warnTypeConversionError();
+            }
+        },
+        [](QtProtobufPrivate::MessageFieldDeserializer deserializer, void *valuePtr) {
+            QtProtobufPrivate::ensureValue(valuePtr);
+
+            PType object;
+            deserializer(&object);
+            auto res = convert(object);
+            auto *qtypePtr = static_cast<QType *>(valuePtr);
+            if constexpr (is_optional_v<decltype(res)>) {
+                if (!res)
+                    warnTypeConversionError();
+                else
+                    *qtypePtr = std::move(*res);
+            } else {
+                *qtypePtr = std::move(res);
+            }
+        });
 }
 } // namespace QtProtobufPrivate
 

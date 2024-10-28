@@ -40,7 +40,7 @@ void ClientDefinitionPrinter::printOpenNamespace()
 
 void ClientDefinitionPrinter::printMethods()
 {
-    for (int i = 0; i < m_descriptor->method_count(); i++) {
+    for (int i = 0; i < m_descriptor->method_count(); ++i) {
         const MethodDescriptor *method = m_descriptor->method(i);
         printMethod(method);
     }
@@ -49,26 +49,17 @@ void ClientDefinitionPrinter::printMethods()
 void ClientDefinitionPrinter::printMethod(const MethodDescriptor *method)
 {
     MethodMap parameters = common::produceMethodMap(method, m_typeMap["classname"]);
-    if (!method->client_streaming()) {
-        if (method->server_streaming()) {
-            m_printer->Print(parameters,
-                             GrpcTemplates::ClientMethodServerStreamDefinitionTemplate());
-        } else {
-            m_printer->Print(parameters, GrpcTemplates::ClientMethodDefinitionSyncTemplate());
-            m_printer->Print(parameters, GrpcTemplates::ClientMethodDefinitionAsyncTemplate());
-            m_printer->Print(parameters, GrpcTemplates::ClientMethodDefinitionAsync2Template());
-            if (Options::instance().hasQml())
-                m_printer->Print(parameters, GrpcTemplates::ClientMethodDefinitionQmlTemplate());
-        }
+    if (method->client_streaming() || method->server_streaming()) {
+        m_printer->Print(parameters, GrpcTemplates::ClientMethodStreamDefinitionTemplate());
+    } else {
+        m_printer->Print(parameters, GrpcTemplates::ClientMethodDefinitionAsyncTemplate());
     }
 }
 
-void ClientDefinitionPrinter::printConstructor()
+void ClientDefinitionPrinter::printConstructorDestructor()
 {
-    m_printer->Print({ { "classname", m_typeMap["classname"] },
-                       { "parent_class", m_typeMap["parent_class"] },
-                       { "service_name", m_descriptor->full_name() } },
-                     GrpcTemplates::ClientConstructorDefinitionTemplate());
+    m_printer->Print(m_typeMap, GrpcTemplates::ClientConstructorDefinitionTemplate());
+    m_printer->Print(m_typeMap, GrpcTemplates::ClientDestructorDefinitionTemplate());
 }
 
 void ClientDefinitionPrinter::printCloseNamespace()

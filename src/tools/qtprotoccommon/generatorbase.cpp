@@ -25,23 +25,34 @@ bool GeneratorBase::GenerateAll(const std::vector<const FileDescriptor *> &files
                                 const std::string &parameter, GeneratorContext *generatorContext,
                                 std::string *error) const
 {
+    assert(!files.empty());
+    assert(generatorContext != nullptr);
+
     Options::setFromString(parameter);
-    return CodeGenerator::GenerateAll(files, parameter, generatorContext, error);
-}
+    if (Options::instance().generateMacroExportFile()) {
+        std::string exportMacroName = Options::instance().exportMacro();
+        std::string exportMacroFilename = Options::instance().exportMacroFilename();
 
-std::string GeneratorBase::generateBaseName(const FileDescriptor *file, const std::string &name)
-{
-    std::string outFileBasename;
-    if (Options::instance().isFolder()) {
-        outFileBasename = file->package();
-        if (!outFileBasename.empty()) {
-            outFileBasename = utils::replace(outFileBasename, ".", "/");
-            outFileBasename += '/';
-        }
+        assert(!exportMacroName.empty());
+        assert(!exportMacroFilename.empty());
+
+        std::unique_ptr<io::ZeroCopyOutputStream> headerStream(generatorContext
+                                                                   ->Open(exportMacroFilename));
+        std::shared_ptr<Printer> headerPrinter(new Printer(headerStream.get(), '$'));
+        printDisclaimer(headerPrinter.get());
+        headerPrinter->Print({ { "export_macro", exportMacroName } },
+                             CommonTemplates::ExportMacroTemplate());
+        headerPrinter->PrintRaw("\n");
     }
-    outFileBasename += name;
-
-    return outFileBasename;
+    if (!Options::instance().extraNamespace().empty()) {
+        std::set<std::string> extraNamespaceFiles;
+        for (const FileDescriptor *file : files) {
+            assert(file != nullptr);
+            extraNamespaceFiles.insert(file->name());
+        }
+        common::setExtraNamespacedFiles(extraNamespaceFiles);
+    }
+    return CodeGenerator::GenerateAll(files, parameter, generatorContext, error);
 }
 
 void GeneratorBase::printDisclaimer(Printer *printer)
@@ -56,9 +67,10 @@ void GeneratorBase::OpenFileNamespaces(
     assert(printer != nullptr);
     assert(file != nullptr);
     const bool hasQtNamespace = (Options::instance().extraNamespace() == "QT_NAMESPACE");
-    const std::string scopeNamespaces = file->message_type_count() > 0
-            ? common::getFullNamespace(file->message_type(0), "::")
-            : common::getFullNamespace(file->enum_type(0), "::");
+
+    const std::string scopeNamespaces
+        = common::getFullNamespace(file->package() + ".noop", "::", true);
+
     printer->Print("\n");
     if (hasQtNamespace || file->package() == "QtCore" || file->package() == "QtGui")
         printer->PrintRaw("QT_BEGIN_NAMESPACE\n");
@@ -74,9 +86,9 @@ void GeneratorBase::CloseFileNamespaces(
 {
     assert(printer != nullptr);
     const bool hasQtNamespace = (Options::instance().extraNamespace() == "QT_NAMESPACE");
-    const std::string scopeNamespaces = file->message_type_count() > 0
-            ? common::getFullNamespace(file->message_type(0), "::")
-            : common::getFullNamespace(file->enum_type(0), "::");
+
+    const std::string scopeNamespaces
+        = common::getFullNamespace(file->package() + ".noop", "::", true);
     if (!scopeNamespaces.empty()) {
         printer->Print({ { "scope_namespaces", scopeNamespaces } },
                        CommonTemplates::NamespaceClosingTemplate());
@@ -84,4 +96,34 @@ void GeneratorBase::CloseFileNamespaces(
     if (hasQtNamespace || file->package() == "QtCore" || file->package() == "QtGui")
         printer->PrintRaw("QT_END_NAMESPACE\n");
     printer->Print("\n");
+}
+
+void GeneratorBase::printIncludes(google::protobuf::io::Printer *printer,
+                                  const std::set<std::string> &internal,
+                                  const utils::ExternalIncludesOrderedSet &external,
+                                  const std::set<std::string> &system)
+{
+    if (!internal.empty())
+        printer->Print("\n");
+    for (const auto &header : internal)
+        printer->Print({ {"include", header } }, CommonTemplates::InternalIncludeTemplate());
+
+    std::string_view includeFirstPart;
+    for (const auto &header : external) {
+        const auto firstPartPos = header.find_first_of('/');
+        if (firstPartPos == std::string::npos) {
+            includeFirstPart = {};
+            printer->Print("\n");
+        } else if (std::string_view currentIncludeFirstPart(header.data(), firstPartPos);
+                   currentIncludeFirstPart != includeFirstPart) {
+            includeFirstPart = currentIncludeFirstPart;
+            printer->Print("\n");
+        }
+        printer->Print({ {"include", header } }, CommonTemplates::ExternalIncludeTemplate());
+    }
+
+    if (!system.empty())
+        printer->Print("\n");
+    for (const auto &header : system)
+        printer->Print({ {"include", header } }, CommonTemplates::ExternalIncludeTemplate());
 }

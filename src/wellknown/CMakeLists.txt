@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 qt_internal_add_protobuf_module(ProtobufWellKnownTypes
-    GENERATE_CPP_EXPORTS
     SOURCES
         qtprotobufwellknowntypesglobal.h
         qprotobufanysupport.cpp qprotobufanysupport.h
@@ -14,17 +13,13 @@ qt_internal_add_protobuf_module(ProtobufWellKnownTypes
 
 qt_internal_add_protobuf_wellknown_types(ProtobufWellKnownTypes
     any
-    # duration
-    # empty
-    # field_mask
-    # source_context
-    # struct
-    # timestamp
-    # wrappers
-    # type
-    # api
-)
-
-qt_internal_add_docs(ProtobufWellKnownTypes
-    doc/qtprotobufwellknowntypes.qdocconf
+    api
+    duration
+    empty
+    field_mask
+    source_context
+    struct
+    timestamp
+    type
+    wrappers
 )

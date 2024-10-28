@@ -1,5 +1,7 @@
-#include <QtProtobuf/qprotobufserializer.h>
+
 #include "repeatedmessages.qpb.h"
+
+#include <QtProtobuf/qprotobufregistration.h>
 
 namespace qtprotobufnamespace::tests {
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedStringMessage(qRegisterProtobufType<RepeatedStringMessage>);
@@ -18,5 +20,6 @@ static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedSFixedIntMessage
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedFixedInt64Message(qRegisterProtobufType<RepeatedFixedInt64Message>);
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedSFixedInt64Message(qRegisterProtobufType<RepeatedSFixedInt64Message>);
 static QtProtobuf::ProtoTypeRegistrar ProtoTypeRegistrarRepeatedBoolMessage(qRegisterProtobufType<RepeatedBoolMessage>);
+static bool RegisterRepeatedmessagesProtobufTypes = [](){ qRegisterProtobufTypes(); return true; }();
 } // namespace qtprotobufnamespace::tests
 
