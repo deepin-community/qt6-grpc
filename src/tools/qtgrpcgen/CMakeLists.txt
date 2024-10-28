@@ -15,6 +15,8 @@ qt_internal_add_tool(${target_name}
         serverdeclarationprinter.cpp serverdeclarationprinter.h
         clientdeclarationprinter.cpp clientdeclarationprinter.h
         clientdefinitionprinter.cpp clientdefinitionprinter.h
+        qmlclientdeclarationprinter.cpp qmlclientdeclarationprinter.h
+        qmlclientdefinitionprinter.cpp qmlclientdefinitionprinter.h
     EXTRA_CMAKE_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/${QT_CMAKE_EXPORT_NAMESPACE}GrpcToolsMacros.cmake"
     EXTRA_CMAKE_INCLUDES
@@ -22,6 +24,9 @@ qt_internal_add_tool(${target_name}
     LIBRARIES
         WrapProtobuf::WrapLibProtoc
         QtProtocCommon
+    ATTRIBUTION_FILE_DIR_PATHS
+        ../../../
+    ATTRIBUTION_ENTRY_INDEX 1
 )
 
 qt_internal_return_unless_building_tools()

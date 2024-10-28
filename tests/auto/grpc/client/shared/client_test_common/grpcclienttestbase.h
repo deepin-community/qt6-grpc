@@ -9,9 +9,6 @@
 #include <QUrl>
 
 #include <QtGrpc/qtgrpcglobal.h>
-#if QT_CONFIG(native_grpc)
-#  include <QtGrpc/QGrpcChannel>
-#endif
 #include <QtGrpc/QGrpcHttp2Channel>
 
 #include <server_proc_runner.h>
@@ -24,8 +21,10 @@ protected:
     enum Channel {
         NoChannels = 0x0,
         Qt = 0x1,
-        Native = 0x2,
-        Ssl = 0x4,
+        Ssl = 0x2,
+        Json = 0x4,
+        SslNoCredentials = 0x8,
+        WithChannelDeadline = 0x10,
     };
     Q_DECLARE_FLAGS(Channels, Channel)
 
@@ -34,9 +33,8 @@ protected:
     std::shared_ptr<qtgrpc::tests::TestService::Client> client();
     GrpcClientTestBase::Channels channelType();
 
-public slots:
+public Q_SLOTS:
     void initTestCase_data();
-    void initTestCase() { qRegisterProtobufTypes(); }
     void init();
 
 private:

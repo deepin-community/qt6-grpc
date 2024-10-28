@@ -20,7 +20,6 @@ public:
     void printClassDeclaration();
     void printClassForwardDeclaration();
 
-    void printMetaTypesDeclaration();
 private:
     void printCopyFunctionality();
     void printMoveSemantic();
@@ -42,6 +41,7 @@ private:
     void printFieldEnum();
     void printQEnums();
     void printOneofEnums();
+    void printPublicExtras();
 
     //Recursive functionality
     void printClassDeclarationPrivate();

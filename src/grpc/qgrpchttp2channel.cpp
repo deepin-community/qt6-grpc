@@ -2,236 +2,839 @@
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>, Viktor Kopp <vifactor@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <QtCore/QEventLoop>
-#include <QtCore/QMetaObject>
-#include <QtCore/QTimer>
-#include <QtCore/QUrl>
-#include <QtGrpc/qabstractgrpcclient.h>
-#include <QtGrpc/qgrpccallreply.h>
-#include <QtGrpc/qgrpcstream.h>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtNetwork/QNetworkRequest>
+#include <QtGrpc/private/qtgrpclogging_p.h>
+#include <QtGrpc/qgrpccalloptions.h>
+#include <QtGrpc/qgrpcchanneloptions.h>
+#include <QtGrpc/qgrpchttp2channel.h>
+#include <QtGrpc/qgrpcoperationcontext.h>
+#include <QtGrpc/qgrpcserializationformat.h>
+#include <QtGrpc/qgrpcstatus.h>
+
+#include <QtProtobuf/qprotobufjsonserializer.h>
 #include <QtProtobuf/qprotobufserializer.h>
-#include <qtgrpcglobal_p.h>
 
-#include <unordered_map>
+#include <QtNetwork/private/hpack_p.h>
+#include <QtNetwork/private/http2protocol_p.h>
+#include <QtNetwork/private/qhttp2connection_p.h>
+#include <QtNetwork/qlocalsocket.h>
+#include <QtNetwork/qtcpsocket.h>
+#if QT_CONFIG(ssl)
+#  include <QtNetwork/qsslsocket.h>
+#endif
 
-#include "qgrpchttp2channel.h"
+#include <QtCore/private/qnoncontiguousbytedevice_p.h>
+#include <QtCore/qalgorithms.h>
+#include <QtCore/qbytearray.h>
+#include <QtCore/qendian.h>
+#include <QtCore/qiodevice.h>
+#include <QtCore/qlist.h>
+#include <QtCore/qmetaobject.h>
+#include <QtCore/qpointer.h>
+#include <QtCore/qqueue.h>
+#include <QtCore/qtimer.h>
+
+#include <functional>
+#include <optional>
+#include <utility>
 
 QT_BEGIN_NAMESPACE
 
 using namespace Qt::StringLiterals;
+using namespace QtGrpc;
 
 /*!
     \class QGrpcHttp2Channel
     \inmodule QtGrpc
 
-    \brief The QGrpcHttp2Channel class is an HTTP/2 implementation of
-    QAbstractGrpcChannel interface.
+    \brief The QGrpcHttp2Channel class is an HTTP/2-based of
+    QAbstractGrpcChannel, based on \l {Qt Network} HTTP/2 implementation.
 
-    QGrpcHttp2Channel utilizes channel and call credentials.
-    Channel credential QGrpcHttp2Channel supports SslConfigCredential key.
-    When HTTPS is used, this key has to be explicitly specified and provide
-    QSslConfiguration and value. The QSslConfiguration provided will be used
-    to establish HTTP/2 secured connection. All keys passed as
-    QGrpcCallCredentials will be used as HTTP/2 headers with related
-    values assigned.
+    Uses \l QGrpcChannelOptions and \l QGrpcCallOptions
+    to control the HTTP/2 communication with the server.
+
+    Use \l QGrpcChannelOptions to set the SSL configuration,
+    application-specific HTTP/2 headers, and connection timeouts.
+
+    \l QGrpcCallOptions control channel parameters for the
+    specific unary call or gRPC stream.
+
+    QGrpcHttp2Channel uses QGrpcChannelOptions to select the serialization
+    format for the protobuf messages. The serialization format can be set
+    either using the \c {content-type} metadata or by setting the
+    \l QGrpcChannelOptions::serializationFormat directly.
+
+    Using the following example you can create a QGrpcHttp2Channel with the
+    JSON serialization format using the \c {content-type} metadata:
+    \code
+        auto channelJson = std::make_shared<
+        QGrpcHttp2Channel>(QGrpcChannelOptions{ QUrl("http://localhost:50051", QUrl::StrictMode) }
+                               .withMetadata({ { "content-type"_ba,
+                                                 "application/grpc+json"_ba } }));
+    \endcode
+
+    Also you can use own serializer and custom \c {content-type} as following:
+    \code
+        class DummySerializer : public QAbstractProtobufSerializer
+        {
+            ...
+        };
+        auto channel = std::make_shared<
+            QGrpcHttp2Channel>(QUrl("http://localhost:50051", QUrl::StrictMode), QGrpcChannelOptions{}
+                               .setSerializationFormat(QGrpcSerializationFormat{ "dummy",
+                                                          std::make_shared<DummySerializer>() }));
+    \endcode
+
+    QGrpcHttp2Channel will use the \c DummySerializer to serialize
+    and deserialize protobuf message and use the
+    \c { content-type: application/grpc+dummy } header when sending
+    HTTP/2 requests to server.
+
+    \l QGrpcChannelOptions::serializationFormat has higher priority and
+    if the \c {content-type} metadata suffix doesn't match the
+    \l QGrpcSerializationFormat::suffix of the specified
+    \l QGrpcChannelOptions::serializationFormat QGrpcHttp2Channel produces
+    warning.
+
+    \sa QGrpcChannelOptions, QGrpcCallOptions, QSslConfiguration
 */
 
-// This QNetworkReply::NetworkError -> QGrpcStatus::StatusCode mapping should be kept in sync
-// with original https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
-const static std::unordered_map<QNetworkReply::NetworkError, QGrpcStatus::StatusCode>
-        StatusCodeMap = {
-            { QNetworkReply::ConnectionRefusedError, QGrpcStatus::Unavailable },
-            { QNetworkReply::RemoteHostClosedError, QGrpcStatus::Unavailable },
-            { QNetworkReply::HostNotFoundError, QGrpcStatus::Unavailable },
-            { QNetworkReply::TimeoutError, QGrpcStatus::DeadlineExceeded },
-            { QNetworkReply::OperationCanceledError, QGrpcStatus::Unavailable },
-            { QNetworkReply::SslHandshakeFailedError, QGrpcStatus::PermissionDenied },
-            { QNetworkReply::TemporaryNetworkFailureError, QGrpcStatus::Unknown },
-            { QNetworkReply::NetworkSessionFailedError, QGrpcStatus::Unavailable },
-            { QNetworkReply::BackgroundRequestNotAllowedError, QGrpcStatus::Unknown },
-            { QNetworkReply::TooManyRedirectsError, QGrpcStatus::Unavailable },
-            { QNetworkReply::InsecureRedirectError, QGrpcStatus::PermissionDenied },
-            { QNetworkReply::UnknownNetworkError, QGrpcStatus::Unknown },
-            { QNetworkReply::ProxyConnectionRefusedError, QGrpcStatus::Unavailable },
-            { QNetworkReply::ProxyConnectionClosedError, QGrpcStatus::Unavailable },
-            { QNetworkReply::ProxyNotFoundError, QGrpcStatus::Unavailable },
-            { QNetworkReply::ProxyTimeoutError, QGrpcStatus::DeadlineExceeded },
-            { QNetworkReply::ProxyAuthenticationRequiredError, QGrpcStatus::Unauthenticated },
-            { QNetworkReply::UnknownProxyError, QGrpcStatus::Unknown },
-            { QNetworkReply::ContentAccessDenied, QGrpcStatus::PermissionDenied },
-            { QNetworkReply::ContentOperationNotPermittedError, QGrpcStatus::PermissionDenied },
-            { QNetworkReply::ContentNotFoundError, QGrpcStatus::NotFound },
-            { QNetworkReply::AuthenticationRequiredError, QGrpcStatus::PermissionDenied },
-            { QNetworkReply::ContentReSendError, QGrpcStatus::DataLoss },
-            { QNetworkReply::ContentConflictError, QGrpcStatus::InvalidArgument },
-            { QNetworkReply::ContentGoneError, QGrpcStatus::DataLoss },
-            { QNetworkReply::UnknownContentError, QGrpcStatus::Unknown },
-            { QNetworkReply::ProtocolUnknownError, QGrpcStatus::Unknown },
-            { QNetworkReply::ProtocolInvalidOperationError, QGrpcStatus::Unimplemented },
-            { QNetworkReply::ProtocolFailure, QGrpcStatus::Unknown },
-            { QNetworkReply::InternalServerError, QGrpcStatus::Internal },
-            { QNetworkReply::OperationNotImplementedError, QGrpcStatus::Unimplemented },
-            { QNetworkReply::ServiceUnavailableError, QGrpcStatus::Unavailable },
-            { QNetworkReply::UnknownServerError, QGrpcStatus::Unknown }
-        };
+namespace {
 
-constexpr char GrpcAcceptEncodingHeader[] = "grpc-accept-encoding";
-constexpr char AcceptEncodingHeader[] = "accept-encoding";
-constexpr char TEHeader[] = "te";
-constexpr char GrpcStatusHeader[] = "grpc-status";
-constexpr char GrpcStatusMessageHeader[] = "grpc-message";
+constexpr QByteArrayView AuthorityHeader(":authority");
+constexpr QByteArrayView MethodHeader(":method");
+constexpr QByteArrayView PathHeader(":path");
+constexpr QByteArrayView SchemeHeader(":scheme");
+
+constexpr QByteArrayView ContentTypeHeader("content-type");
+constexpr QByteArrayView AcceptEncodingHeader("accept-encoding");
+constexpr QByteArrayView TEHeader("te");
+
+constexpr QByteArrayView GrpcServiceNameHeader("service-name");
+constexpr QByteArrayView GrpcAcceptEncodingHeader("grpc-accept-encoding");
+constexpr QByteArrayView GrpcStatusHeader("grpc-status");
+constexpr QByteArrayView GrpcStatusMessageHeader("grpc-message");
 constexpr qsizetype GrpcMessageSizeHeaderSize = 5;
+constexpr QByteArrayView DefaultContentType = "application/grpc";
 
-static void addMetadataToRequest(QNetworkRequest *request, const QGrpcMetadata &channelMetadata,
-                                 const QGrpcMetadata &callMetadata)
+// This HTTP/2 Error Codes to QGrpcStatus::StatusCode mapping should be kept in sync
+// with the following docs:
+//     https://www.rfc-editor.org/rfc/rfc7540#section-7
+//     https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+//     https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
+constexpr StatusCode http2ErrorToStatusCode(const quint32 http2Error)
 {
-    auto iterateMetadata = [&request](const auto &metadata) {
-        for (const auto &[key, value] : std::as_const(metadata)) {
-            request->setRawHeader(key, value);
-        }
-    };
+    using Http2Error = Http2::Http2Error;
 
-    iterateMetadata(channelMetadata);
-    iterateMetadata(callMetadata);
+    switch (http2Error) {
+    case Http2Error::HTTP2_NO_ERROR:
+    case Http2Error::PROTOCOL_ERROR:
+    case Http2Error::INTERNAL_ERROR:
+    case Http2Error::FLOW_CONTROL_ERROR:
+    case Http2Error::SETTINGS_TIMEOUT:
+    case Http2Error::STREAM_CLOSED:
+    case Http2Error::FRAME_SIZE_ERROR:
+        return StatusCode::Internal;
+    case Http2Error::REFUSE_STREAM:
+        return StatusCode::Unavailable;
+    case Http2Error::CANCEL:
+        return StatusCode::Cancelled;
+    case Http2Error::COMPRESSION_ERROR:
+    case Http2Error::CONNECT_ERROR:
+        return StatusCode::Internal;
+    case Http2Error::ENHANCE_YOUR_CALM:
+        return StatusCode::ResourceExhausted;
+    case Http2Error::INADEQUATE_SECURITY:
+        return StatusCode::PermissionDenied;
+    case Http2Error::HTTP_1_1_REQUIRED:
+        return StatusCode::Unknown;
+    }
+    return StatusCode::Internal;
 }
 
-static QGrpcMetadata collectMetadata(QNetworkReply *networkReply)
-{
-    return QGrpcMetadata(networkReply->rawHeaderPairs().begin(),
-                         networkReply->rawHeaderPairs().end());
-}
+} // namespace
 
-static std::optional<std::chrono::milliseconds> deadlineForCall(
-        const QGrpcChannelOptions &channelOptions, const QGrpcCallOptions &callOptions)
-{
-    if (callOptions.deadline())
-        return *callOptions.deadline();
-    if (channelOptions.deadline())
-        return *channelOptions.deadline();
-    return std::nullopt;
-}
+class QGrpcSocketHandler;
 
-struct QGrpcHttp2ChannelPrivate
+class QGrpcHttp2ChannelPrivate : public QObject
 {
+    Q_OBJECT
+public:
+    explicit QGrpcHttp2ChannelPrivate(const QUrl &uri, QGrpcHttp2Channel *q);
+    ~QGrpcHttp2ChannelPrivate() override;
+
+    void processOperation(const std::shared_ptr<QGrpcOperationContext> &operationContext,
+                          bool endStream = false);
+    std::shared_ptr<QAbstractProtobufSerializer> serializer;
+    QUrl hostUri;
+    QGrpcHttp2Channel *q_ptr = nullptr;
+
+private:
+    Q_DISABLE_COPY_MOVE(QGrpcHttp2ChannelPrivate)
+
+    enum SerializerTypes { Default = 0, Protobuf, JSON };
+
+    enum ConnectionState { Connecting = 0, Connected, Error };
+
     struct ExpectedData
     {
-        qsizetype expectedSize;
+        qsizetype expectedSize = 0;
         QByteArray container;
+        bool updateExpectedSize()
+        {
+            if (expectedSize == 0) {
+                if (container.size() < GrpcMessageSizeHeaderSize)
+                    return false;
+                expectedSize = qFromBigEndian<quint32>(container.data() + 1)
+                    + GrpcMessageSizeHeaderSize;
+            }
+            return true;
+        }
     };
 
-    QNetworkAccessManager nm;
-    QGrpcChannelOptions channelOptions;
-#if QT_CONFIG(ssl)
-    QSslConfiguration sslConfig;
-#endif
-    std::unordered_map<QNetworkReply *, ExpectedData> activeStreamReplies;
-    QObject lambdaContext;
-
-    QNetworkReply *post(QLatin1StringView method, QLatin1StringView service, QByteArrayView args,
-                        const QGrpcCallOptions &callOptions)
+    class Http2Handler : public QObject
     {
-        QUrl callUrl = channelOptions.host();
-        callUrl.setPath("/%1/%2"_L1.arg(service, method));
+    public:
+        enum State : uint8_t { Active, Cancelled, Finished };
 
-        qGrpcDebug() << "Service call url:" << callUrl;
-        QNetworkRequest request(callUrl);
-        request.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("application/grpc"_L1));
-        request.setRawHeader(GrpcAcceptEncodingHeader, "identity,deflate,gzip");
-        request.setRawHeader(AcceptEncodingHeader, "identity,gzip");
-        request.setRawHeader(TEHeader, "trailers");
-#if QT_CONFIG(ssl)
-        request.setSslConfiguration(sslConfig);
-#endif
+        explicit Http2Handler(const std::shared_ptr<QGrpcOperationContext> &operation,
+                              QGrpcHttp2ChannelPrivate *parent, bool endStream);
+        ~Http2Handler() override;
+        void sendInitialRequest();
 
-        addMetadataToRequest(&request, channelOptions.metadata(), callOptions.metadata());
+        void writeMessage(QByteArrayView data);
+        [[nodiscard]] bool sendHeaders(const HPack::HttpHeader &headers);
+        void processQueue();
+        bool cancel();
+        void finish();
+        void onDeadlineTimeout();
 
-        request.setAttribute(QNetworkRequest::Http2DirectAttribute, true);
+        void attachStream(QHttp2Stream *stream_);
 
-        QByteArray msg(GrpcMessageSizeHeaderSize, '\0');
-        // Args must be 4-byte unsigned int to fit into 4-byte big endian
-        qToBigEndian(static_cast<quint32>(args.size()), msg.data() + 1);
-        msg += args;
-        qGrpcDebug() << "SEND msg with size:" << msg.size();
+        [[nodiscard]] QGrpcOperationContext *operation() const;
+        [[nodiscard]] bool expired() const { return m_operation.expired(); }
 
-        QNetworkReply *networkReply = nm.post(request, msg);
-#if QT_CONFIG(ssl)
-        QObject::connect(networkReply, &QNetworkReply::sslErrors, networkReply,
-                         [networkReply](const QList<QSslError> &errors) {
-                             qGrpcCritical() << errors;
-                             // TODO: filter out noncritical SSL handshake errors
-                             // FIXME: error due to ssl failure is not transferred to the client:
-                             // last error will be Operation canceled
-                             QGrpcHttp2ChannelPrivate::abortNetworkReply(networkReply);
+        [[nodiscard]] bool isStreamClosedForSending() const
+        {
+            // If stream pointer is nullptr this means we never opened it and should collect
+            // the incoming messages in queue until the stream is opened or the error occurred.
+            return m_stream != nullptr
+                && (m_stream->state() == QHttp2Stream::State::HalfClosedLocal
+                    || m_stream->state() == QHttp2Stream::State::Closed);
+        }
+
+    private:
+        void prepareInitialRequest(QGrpcOperationContext *operationContext,
+                                   QGrpcHttp2ChannelPrivate *channel);
+
+        HPack::HttpHeader m_initialHeaders;
+
+        std::weak_ptr<QGrpcOperationContext> m_operation;
+        QQueue<QByteArray> m_queue;
+        QPointer<QHttp2Stream> m_stream;
+        ExpectedData m_expectedData;
+        State m_handlerState = Active;
+        const bool m_endStreamAtFirstData;
+        QTimer m_deadlineTimer;
+        Q_DISABLE_COPY_MOVE(Http2Handler)
+    };
+
+    static void operationContextAsyncError(QGrpcOperationContext *operationContext,
+                                           const QGrpcStatus &status);
+    template <typename T>
+    static void connectErrorHandler(T *socket, QGrpcOperationContext *operationContext)
+    {
+        QObject::connect(socket, &T::errorOccurred, operationContext,
+                         [operationContextPtr = QPointer(operationContext)](auto error) {
+                             emit operationContextPtr->finished(QGrpcStatus{
+                                 StatusCode::Unavailable,
+                                 QGrpcHttp2ChannelPrivate::tr("Network error occurred %1")
+                                     .arg(error) });
                          });
-#endif
-        if (auto deadline = deadlineForCall(channelOptions, callOptions)) {
-            QTimer::singleShot(*deadline, networkReply, [networkReply] {
-                QGrpcHttp2ChannelPrivate::abortNetworkReply(networkReply);
-            });
-        }
-        return networkReply;
     }
 
-    static void abortNetworkReply(QNetworkReply *networkReply)
+    void sendInitialRequest(Http2Handler *handler);
+    void sendPendingRequests();
+    void createHttp2Connection();
+    void handleSocketError();
+
+    void deleteHandler(Http2Handler *handler);
+
+    template <typename T>
+    T *initSocket()
     {
-        if (networkReply->isRunning())
-            networkReply->abort();
-        else
-            networkReply->deleteLater();
+        auto p = std::make_unique<T>();
+        T *typedSocket = p.get();
+        m_socket = std::move(p);
+        return typedSocket;
     }
 
-    static QByteArray processReply(QNetworkReply *networkReply, QGrpcStatus::StatusCode &statusCode)
-    {
-        // Check if no network error occurred
-        if (networkReply->error() != QNetworkReply::NoError) {
-            statusCode = StatusCodeMap.at(networkReply->error());
-            return {};
-        }
-
-        // Check if server answer with error
-        statusCode = static_cast<QGrpcStatus::StatusCode>(
-                networkReply->rawHeader(GrpcStatusHeader).toInt());
-        if (statusCode != QGrpcStatus::StatusCode::Ok)
-            return {};
-
-        // Message size doesn't matter for now
-        return networkReply->readAll().mid(GrpcMessageSizeHeaderSize);
-    }
-
-    QGrpcHttp2ChannelPrivate(const QGrpcChannelOptions &options) : channelOptions(options)
-    {
-#if QT_CONFIG(ssl)
-        if (channelOptions.host().scheme() == "https"_L1) {
-            // HTTPS connection requested but not ssl configuration provided.
-            Q_ASSERT(channelOptions.sslConfiguration());
-            sslConfig = *channelOptions.sslConfiguration();
-        } else if (channelOptions.host().scheme().isEmpty()) {
-            auto tmpHost = channelOptions.host();
-            tmpHost.setScheme("http"_L1);
-            channelOptions.withHost(tmpHost);
-        }
-#else
-        auto tmpHost = channelOptions.host();
-        tmpHost.setScheme("http"_L1);
-        channelOptions.withHost(tmpHost);
-#endif
-    }
-
-    static int getExpectedDataSize(QByteArrayView container)
-    {
-        return qFromBigEndian(*reinterpret_cast<const quint32 *>(container.data() + 1))
-                + GrpcMessageSizeHeaderSize;
-    }
+    std::unique_ptr<QIODevice> m_socket = nullptr;
+    QHttp2Connection *m_connection = nullptr;
+    QList<Http2Handler *> m_activeHandlers;
+    QList<Http2Handler *> m_pendingHandlers;
+    bool m_isLocalSocket = false;
+    QByteArray m_contentType;
+    ConnectionState m_state = Connecting;
+    std::function<void()> m_reconnectFunction;
 };
 
+QGrpcHttp2ChannelPrivate::Http2Handler::Http2Handler(const std::shared_ptr<QGrpcOperationContext>
+                                                         &operation,
+                                                     QGrpcHttp2ChannelPrivate *parent,
+                                                     bool endStream)
+    : QObject(parent), m_operation(operation), m_endStreamAtFirstData(endStream)
+{
+    auto *channelOpPtr = operation.get();
+    QObject::connect(channelOpPtr, &QGrpcOperationContext::cancelRequested, this,
+                     &Http2Handler::cancel);
+    QObject::connect(channelOpPtr, &QGrpcOperationContext::writesDoneRequested, this,
+                     &Http2Handler::finish);
+    if (!m_endStreamAtFirstData) {
+        QObject::connect(channelOpPtr, &QGrpcOperationContext::writeMessageRequested, this,
+                         &Http2Handler::writeMessage);
+    }
+    QObject::connect(channelOpPtr, &QGrpcOperationContext::finished, &m_deadlineTimer,
+                     &QTimer::stop);
+    prepareInitialRequest(channelOpPtr, parent);
+}
+
+QGrpcHttp2ChannelPrivate::Http2Handler::~Http2Handler()
+{
+    if (m_stream) {
+        QHttp2Stream *streamPtr = m_stream.get();
+        m_stream.clear();
+        delete streamPtr;
+    }
+}
+
+void QGrpcHttp2ChannelPrivate::Http2Handler::attachStream(QHttp2Stream *stream_)
+{
+    Q_ASSERT(m_stream == nullptr);
+    Q_ASSERT(stream_ != nullptr);
+
+    auto *channelOpPtr = operation();
+    m_stream = stream_;
+
+    auto *parentChannel = qobject_cast<QGrpcHttp2ChannelPrivate *>(parent());
+    QObject::connect(m_stream.get(), &QHttp2Stream::headersReceived, channelOpPtr,
+                     [channelOpPtr, parentChannel, this](const HPack::HttpHeader &headers,
+                                                         bool endStream) {
+                         auto md = channelOpPtr->serverMetadata();
+                         QtGrpc::StatusCode statusCode = StatusCode::Ok;
+                         QString statusMessage;
+                         for (const auto &header : headers) {
+                             md.insert(header.name, header.value);
+                             if (header.name == GrpcStatusHeader) {
+                                 statusCode = static_cast<
+                                     StatusCode>(QString::fromLatin1(header.value).toShort());
+                             } else if (header.name == GrpcStatusMessageHeader) {
+                                 statusMessage = QString::fromUtf8(header.value);
+                             }
+                         }
+
+                         channelOpPtr->setServerMetadata(std::move(md));
+
+                         if (endStream) {
+                             if (m_handlerState != Cancelled) {
+                                 emit channelOpPtr->finished(
+                                     QGrpcStatus{ statusCode,statusMessage });
+                             }
+                             parentChannel->deleteHandler(this);
+                         }
+                     });
+
+    Q_ASSERT(parentChannel != nullptr);
+    auto errorConnection = std::make_shared<QMetaObject::Connection>();
+    *errorConnection = QObject::connect(
+        m_stream.get(), &QHttp2Stream::errorOccurred, parentChannel,
+        [parentChannel, errorConnection, this](quint32 http2ErrorCode, const QString &errorString) {
+            if (!m_operation.expired()) {
+                auto channelOp = m_operation.lock();
+                emit channelOp->finished(QGrpcStatus{ http2ErrorToStatusCode(http2ErrorCode),
+                                                      errorString });
+            }
+            parentChannel->deleteHandler(this);
+            QObject::disconnect(*errorConnection);
+        });
+
+    QObject::connect(m_stream.get(), &QHttp2Stream::dataReceived, channelOpPtr,
+                     [channelOpPtr, parentChannel, this](const QByteArray &data, bool endStream) {
+                         if (m_handlerState != Cancelled) {
+                             m_expectedData.container.append(data);
+
+                             if (!m_expectedData.updateExpectedSize())
+                                 return;
+
+                             while (m_expectedData.container.size()
+                                    >= m_expectedData.expectedSize) {
+                                 qGrpcDebug() << "Full data received:" << data.size()
+                                              << "dataContainer:" << m_expectedData.container.size()
+                                              << "capacity:" << m_expectedData.expectedSize;
+                                 emit channelOpPtr
+                                     ->messageReceived(m_expectedData.container
+                                                           .mid(GrpcMessageSizeHeaderSize,
+                                                                m_expectedData.expectedSize
+                                                                    - GrpcMessageSizeHeaderSize));
+                                 m_expectedData.container.remove(0, m_expectedData.expectedSize);
+                                 m_expectedData.expectedSize = 0;
+                                 if (!m_expectedData.updateExpectedSize())
+                                     return;
+                             }
+                             if (endStream) {
+                                 m_handlerState = Finished;
+                                 emit channelOpPtr->finished({});
+                                 parentChannel->deleteHandler(this);
+                             }
+                         }
+                     });
+
+    QObject::connect(m_stream.get(), &QHttp2Stream::uploadFinished, this,
+                     &Http2Handler::processQueue);
+
+    std::optional<std::chrono::milliseconds> deadline;
+    if (channelOpPtr->callOptions().deadlineTimeout())
+        deadline = channelOpPtr->callOptions().deadlineTimeout();
+    else if (parentChannel->q_ptr->channelOptions().deadlineTimeout())
+        deadline = parentChannel->q_ptr->channelOptions().deadlineTimeout();
+    if (deadline) {
+        // We have an active stream and a deadline. It's time to start the timer.
+        QObject::connect(&m_deadlineTimer, &QTimer::timeout, this,
+                         &Http2Handler::onDeadlineTimeout);
+        m_deadlineTimer.start(*deadline);
+    }
+}
+
+QGrpcOperationContext *QGrpcHttp2ChannelPrivate::Http2Handler::operation() const
+{
+    Q_ASSERT(!m_operation.expired());
+
+    return m_operation.lock().get();
+}
+
+// Sends the errorOccured and finished signals asynchronously to make sure user connections work
+// correctly.
+void QGrpcHttp2ChannelPrivate::operationContextAsyncError(QGrpcOperationContext *operationContext,
+                                                          const QGrpcStatus &status)
+{
+    Q_ASSERT_X(operationContext != nullptr, "QGrpcHttp2ChannelPrivate::operationContextAsyncError",
+               "operationContext is null");
+    QTimer::singleShot(0, operationContext,
+                       [operationContext, status]() { emit operationContext->finished(status); });
+}
+
+// The initial headers to be sent before the first data.
+void QGrpcHttp2ChannelPrivate::Http2Handler::prepareInitialRequest(QGrpcOperationContext
+                                                                       *operationContext,
+                                                                   QGrpcHttp2ChannelPrivate
+                                                                       *channel)
+{
+    const auto &channelOptions = channel->q_ptr->channelOptions();
+    QByteArray service{ operationContext->service().data(), operationContext->service().size() };
+    QByteArray method{ operationContext->method().data(), operationContext->method().size() };
+    m_initialHeaders = HPack::HttpHeader{
+        {AuthorityHeader.toByteArray(),           channel->hostUri.host().toLatin1()      },
+        { MethodHeader.toByteArray(),             "POST"_ba                               },
+        { PathHeader.toByteArray(),               QByteArray('/' + service + '/' + method)},
+        { SchemeHeader.toByteArray(),
+         channel->m_isLocalSocket ? "http"_ba : channel->hostUri.scheme().toLatin1()      },
+        { ContentTypeHeader.toByteArray(),        channel->m_contentType                  },
+        { GrpcServiceNameHeader.toByteArray(),    { service }                             },
+        { GrpcAcceptEncodingHeader.toByteArray(), "identity,deflate,gzip"_ba              },
+        { AcceptEncodingHeader.toByteArray(),     "identity,gzip"_ba                      },
+        { TEHeader.toByteArray(),                 "trailers"_ba                           },
+    };
+
+    auto iterateMetadata = [this](const auto &metadata) {
+        for (const auto &[key, value] : metadata.asKeyValueRange()) {
+            const auto lowerKey = key.toLower();
+            if (lowerKey == AuthorityHeader || lowerKey == MethodHeader || lowerKey == PathHeader
+                || lowerKey == SchemeHeader || lowerKey == ContentTypeHeader) {
+                continue;
+            }
+            m_initialHeaders.emplace_back(lowerKey, value);
+        }
+    };
+
+    iterateMetadata(channelOptions.metadata());
+    iterateMetadata(operationContext->callOptions().metadata());
+
+    writeMessage(operationContext->argument());
+}
+
+// Do not send the data immediately, but put it to message queue, for further processing.
+// The data for cancelled stream is ignored.
+void QGrpcHttp2ChannelPrivate::Http2Handler::writeMessage(QByteArrayView data)
+{
+    if (m_handlerState != Active || isStreamClosedForSending()) {
+        qGrpcDebug("Attempt sending data to the ended stream");
+        return;
+    }
+
+    QByteArray msg(GrpcMessageSizeHeaderSize + data.size(), '\0');
+    // Args must be 4-byte unsigned int to fit into 4-byte big endian
+    qToBigEndian(static_cast<quint32>(data.size()), msg.data() + 1);
+
+    // protect against nullptr data.
+    if (!data.isEmpty()) {
+        std::memcpy(msg.begin() + GrpcMessageSizeHeaderSize, data.begin(),
+                    static_cast<size_t>(data.size()));
+    }
+
+    m_queue.enqueue(msg);
+    processQueue();
+}
+
+// Sends the initial headers before processing the message queue.
+void QGrpcHttp2ChannelPrivate::Http2Handler::sendInitialRequest()
+{
+    Q_ASSERT(!m_initialHeaders.empty());
+    Q_ASSERT(m_stream);
+
+    if (!m_stream->sendHEADERS(m_initialHeaders, false)) {
+        operationContextAsyncError(operation(),
+                                   QGrpcStatus{
+                                       StatusCode::Unavailable,
+                                       tr("Unable to send initial headers to an HTTP/2 stream") });
+        return;
+    }
+    m_initialHeaders.clear();
+    processQueue();
+}
+
+// Sends pre-backed headers to the m_stream.
+bool QGrpcHttp2ChannelPrivate::Http2Handler::sendHeaders(const HPack::HttpHeader &headers)
+{
+    Q_ASSERT(m_stream != nullptr);
+
+    if (m_handlerState != Active || isStreamClosedForSending()) {
+        qGrpcDebug("Attempt sending headers to the ended stream");
+        return false;
+    }
+
+    // We assume that only data packages may end the stream.
+    return m_stream->sendHEADERS(headers, false);
+}
+
+// Once steam is ready to upload more data, send it.
+void QGrpcHttp2ChannelPrivate::Http2Handler::processQueue()
+{
+    if (!m_stream)
+        return;
+
+    if (m_stream->isUploadingDATA())
+        return;
+
+    if (m_queue.isEmpty())
+        return;
+
+    // Take ownership of the byte device.
+    auto *device = QNonContiguousByteDeviceFactory::create(m_queue.dequeue());
+    device->setParent(m_stream);
+
+    m_stream->sendDATA(device, device->atEnd() || m_endStreamAtFirstData);
+    // Manage the lifetime through the uploadFinished signal (or this
+    // Http2Handler). Don't use QObject::deleteLater here as this function is
+    // expensive and blocking. Delete the byte device directly.
+    //              This is fine in this context.
+    connect(m_stream.get(), &QHttp2Stream::uploadFinished, device, [device] { delete device; });
+}
+
+bool QGrpcHttp2ChannelPrivate::Http2Handler::cancel()
+{
+    if (m_handlerState != Active || !m_stream)
+        return false;
+    m_handlerState = Cancelled;
+
+    // Client cancelled the stream before the deadline exceeded.
+    m_deadlineTimer.stop();
+
+    // Immediate cancellation by sending the RST_STREAM frame.
+    return m_stream->sendRST_STREAM(Http2::Http2Error::CANCEL);
+}
+
+void QGrpcHttp2ChannelPrivate::Http2Handler::finish()
+{
+    if (m_handlerState != Active)
+        return;
+
+    m_handlerState = Finished;
+
+    // Stream is already (half)closed, skip sending the DATA frame with the end-of-stream flag.
+    if (isStreamClosedForSending())
+        return;
+
+    m_queue.enqueue({});
+    processQueue();
+}
+
+void QGrpcHttp2ChannelPrivate::Http2Handler::onDeadlineTimeout()
+{
+    Q_ASSERT_X(m_stream, "onDeadlineTimeout", "stream is not available");
+
+    if (m_operation.expired()) {
+        qGrpcWarning("Operation expired on deadline timeout");
+        return;
+    }
+    // cancel the stream by sending the RST_FRAME and report
+    // the status back to our user.
+    if (cancel()) {
+        emit m_operation.lock()->finished({ StatusCode::DeadlineExceeded,
+                                            "Deadline Exceeded" });
+    } else {
+        qGrpcWarning("Cancellation failed on deadline timeout.");
+    }
+}
+
+QGrpcHttp2ChannelPrivate::QGrpcHttp2ChannelPrivate(const QUrl &uri, QGrpcHttp2Channel *q)
+    : hostUri(uri), q_ptr(q)
+{
+    auto channelOptions = q_ptr->channelOptions();
+    auto formatSuffix = channelOptions.serializationFormat().suffix();
+    const QByteArray defaultContentType = DefaultContentType.toByteArray();
+    const QByteArray contentTypeFromOptions = !formatSuffix.isEmpty()
+        ? defaultContentType + '+' + formatSuffix
+        : defaultContentType;
+    bool warnAboutFormatConflict = !formatSuffix.isEmpty();
+
+    const auto it = channelOptions.metadata().constFind(ContentTypeHeader.data());
+    if (it != channelOptions.metadata().cend()) {
+        if (formatSuffix.isEmpty() && it.value() != DefaultContentType) {
+            if (it.value() == "application/grpc+json") {
+                channelOptions.setSerializationFormat(SerializationFormat::Json);
+            } else if (it.value() == "application/grpc+proto" || it.value() == DefaultContentType) {
+                channelOptions.setSerializationFormat(SerializationFormat::Protobuf);
+            } else {
+                qGrpcWarning() << "Cannot choose the serializer for " << ContentTypeHeader
+                               << it.value() << ". Using protobuf format as the default one.";
+                channelOptions.setSerializationFormat(SerializationFormat::Default);
+            }
+            q_ptr->setChannelOptions(channelOptions);
+        } else if (it.value() != contentTypeFromOptions) {
+            warnAboutFormatConflict = true;
+        } else {
+            warnAboutFormatConflict = false;
+        }
+    } else {
+        warnAboutFormatConflict = false;
+    }
+
+    if (formatSuffix == channelOptions.serializationFormat().suffix()) { // no change
+        m_contentType = contentTypeFromOptions;
+    } else { // format has changed, update content type
+        m_contentType = !channelOptions.serializationFormat().suffix().isEmpty()
+            ? defaultContentType + '+' + channelOptions.serializationFormat().suffix()
+            : defaultContentType;
+    }
+
+    if (warnAboutFormatConflict) {
+        qGrpcWarning()
+            << "Manually specified serialization format '%1' doesn't match the %2 header value "
+               "'%3'"_L1.arg(QString::fromLatin1(contentTypeFromOptions),
+                             QString::fromLatin1(ContentTypeHeader),
+                             QString::fromLatin1(it.value()));
+    }
+
+    if (hostUri.scheme() == "unix"_L1) {
+        auto *localSocket = initSocket<QLocalSocket>();
+        m_isLocalSocket = true;
+
+        QObject::connect(localSocket, &QLocalSocket::connected, this,
+                         &QGrpcHttp2ChannelPrivate::createHttp2Connection);
+        QObject::connect(localSocket, &QLocalSocket::errorOccurred, this,
+                         [this](QLocalSocket::LocalSocketError error) {
+                             qGrpcDebug()
+                                 << "Error occurred(" << error << "):"
+                                 << static_cast<QLocalSocket *>(m_socket.get())->errorString()
+                                 << hostUri;
+                             handleSocketError();
+                         });
+        m_reconnectFunction = [localSocket, this] {
+            localSocket->connectToServer(hostUri.host() + hostUri.path());
+        };
+    } else
+#if QT_CONFIG(ssl)
+        if (hostUri.scheme() == "https"_L1 || channelOptions.sslConfiguration()) {
+        auto *sslSocket = initSocket<QSslSocket>();
+        if (hostUri.port() < 0) {
+            hostUri.setPort(443);
+        }
+
+        if (const auto userSslConfig = channelOptions.sslConfiguration(); userSslConfig) {
+            sslSocket->setSslConfiguration(*userSslConfig);
+        } else {
+            static const QByteArray h2NexProtocol = "h2"_ba;
+            auto defautlSslConfig = QSslConfiguration::defaultConfiguration();
+            auto allowedNextProtocols = defautlSslConfig.allowedNextProtocols();
+            if (!allowedNextProtocols.contains(h2NexProtocol))
+                allowedNextProtocols.append(h2NexProtocol);
+            defautlSslConfig.setAllowedNextProtocols(allowedNextProtocols);
+            sslSocket->setSslConfiguration(defautlSslConfig);
+        }
+
+        QObject::connect(sslSocket, &QSslSocket::encrypted, this,
+                         &QGrpcHttp2ChannelPrivate::createHttp2Connection);
+        QObject::connect(sslSocket, &QAbstractSocket::errorOccurred, this,
+                         [this](QAbstractSocket::SocketError error) {
+                             qDebug()
+                                 << "Error occurred(" << error << "):"
+                                 << static_cast<QAbstractSocket *>(m_socket.get())->errorString()
+                                 << hostUri;
+                             handleSocketError();
+                         });
+        m_reconnectFunction = [sslSocket, this] {
+            sslSocket->connectToHostEncrypted(hostUri.host(), static_cast<quint16>(hostUri.port()));
+        };
+    } else
+#endif
+    {
+        auto *httpSocket = initSocket<QTcpSocket>();
+        if (hostUri.port() < 0) {
+            hostUri.setPort(80);
+        }
+
+        QObject::connect(httpSocket, &QAbstractSocket::connected, this,
+                         &QGrpcHttp2ChannelPrivate::createHttp2Connection);
+        QObject::connect(httpSocket, &QAbstractSocket::errorOccurred, this,
+                         [this](QAbstractSocket::SocketError error) {
+                             qGrpcDebug()
+                                 << "Error occurred(" << error << "):"
+                                 << static_cast<QAbstractSocket *>(m_socket.get())->errorString()
+                                 << hostUri;
+                             handleSocketError();
+                         });
+        m_reconnectFunction = [httpSocket, this] {
+            httpSocket->connectToHost(hostUri.host(), static_cast<quint16>(hostUri.port()));
+        };
+    }
+    m_reconnectFunction();
+}
+
+QGrpcHttp2ChannelPrivate::~QGrpcHttp2ChannelPrivate()
+{
+}
+
+void QGrpcHttp2ChannelPrivate::processOperation(const std::shared_ptr<QGrpcOperationContext>
+                                                    &operationContext,
+                                                bool endStream)
+{
+    auto *operationContextPtr = operationContext.get();
+    Q_ASSERT_X(operationContextPtr != nullptr, "QGrpcHttp2ChannelPrivate::processOperation",
+               "operation context is nullptr.");
+
+    if (!m_socket->isWritable()) {
+        operationContextAsyncError(operationContextPtr,
+                                   QGrpcStatus{ StatusCode::Unavailable,
+                                                m_socket->errorString() });
+        return;
+    }
+
+    if (m_isLocalSocket) {
+        connectErrorHandler<QLocalSocket>(static_cast<QLocalSocket *>(m_socket.get()),
+                                          operationContextPtr);
+    } else {
+        connectErrorHandler<QAbstractSocket>(static_cast<QAbstractSocket *>(m_socket.get()),
+                                             operationContextPtr);
+    }
+
+    Http2Handler *handler = new Http2Handler(operationContext, this, endStream);
+    if (m_connection == nullptr) {
+        m_pendingHandlers.push_back(handler);
+    } else {
+        sendInitialRequest(handler);
+        m_activeHandlers.push_back(handler);
+    }
+
+    if (m_state == ConnectionState::Error) {
+        Q_ASSERT_X(m_reconnectFunction, "QGrpcHttp2ChannelPrivate::processOperation",
+                   "Socket reconnection function is not defined.");
+        m_reconnectFunction();
+        m_state = ConnectionState::Connecting;
+    }
+}
+
+void QGrpcHttp2ChannelPrivate::createHttp2Connection()
+{
+    Q_ASSERT_X(m_connection == nullptr, "QGrpcHttp2ChannelPrivate::createHttp2Connection",
+               "Attempt to create the HTTP/2 connection, but it already exists. This situation is "
+               "exceptional.");
+    m_connection = QHttp2Connection::createDirectConnection(m_socket.get(), {});
+
+    if (m_connection) {
+        QObject::connect(m_socket.get(), &QAbstractSocket::readyRead, m_connection,
+                         &QHttp2Connection::handleReadyRead);
+        m_state = ConnectionState::Connected;
+    }
+
+    for (const auto &handler : m_pendingHandlers) {
+        if (handler->expired()) {
+            delete handler;
+            continue;
+        }
+        sendInitialRequest(handler);
+    }
+    m_activeHandlers.append(m_pendingHandlers);
+    m_pendingHandlers.clear();
+}
+
+void QGrpcHttp2ChannelPrivate::handleSocketError()
+{
+    qDeleteAll(m_activeHandlers);
+    m_activeHandlers.clear();
+    qDeleteAll(m_pendingHandlers);
+    m_pendingHandlers.clear();
+    delete m_connection;
+    m_connection = nullptr;
+    m_state = ConnectionState::Error;
+}
+
+void QGrpcHttp2ChannelPrivate::sendInitialRequest(Http2Handler *handler)
+{
+    Q_ASSERT(handler != nullptr);
+    auto *channelOpPtr = handler->operation();
+    if (!m_connection) {
+        operationContextAsyncError(channelOpPtr,
+                                   QGrpcStatus{
+                                       StatusCode::Unavailable,
+                                       tr("Unable to establish an HTTP/2 connection") });
+        return;
+    }
+
+    const auto streamAttempt = m_connection->createStream();
+    if (!streamAttempt.ok()) {
+        operationContextAsyncError(channelOpPtr,
+                                   QGrpcStatus{
+                                       StatusCode::Unavailable,
+                                       tr("Unable to create an HTTP/2 stream (%1)")
+                                           .arg(QDebug::toString(streamAttempt.error())) });
+        return;
+    }
+    handler->attachStream(streamAttempt.unwrap());
+    handler->sendInitialRequest();
+}
+
+void QGrpcHttp2ChannelPrivate::deleteHandler(Http2Handler *handler)
+{
+    const auto it = std::find(m_activeHandlers.constBegin(), m_activeHandlers.constEnd(), handler);
+    if (it == m_activeHandlers.constEnd())
+        return;
+    handler->deleteLater();
+    m_activeHandlers.erase(it);
+}
+
 /*!
-    QGrpcHttp2Channel constructs QGrpcHttp2Channel with \a options.
+    Constructs QGrpcHttp2Channel with \a hostUri.
 */
-QGrpcHttp2Channel::QGrpcHttp2Channel(const QGrpcChannelOptions &options)
-    : QAbstractGrpcChannel(), dPtr(std::make_unique<QGrpcHttp2ChannelPrivate>(options))
+QGrpcHttp2Channel::QGrpcHttp2Channel(const QUrl &hostUri)
+    : QAbstractGrpcChannel(), d_ptr(std::make_unique<QGrpcHttp2ChannelPrivate>(hostUri, this))
+{
+}
+
+/*!
+    Constructs QGrpcHttp2Channel with \a hostUri and \a options.
+*/
+QGrpcHttp2Channel::QGrpcHttp2Channel(const QUrl &hostUri, const QGrpcChannelOptions &options)
+    : QAbstractGrpcChannel(options),
+      d_ptr(std::make_unique<QGrpcHttp2ChannelPrivate>(hostUri, this))
 {
 }
 
@@ -241,228 +844,47 @@ QGrpcHttp2Channel::QGrpcHttp2Channel(const QGrpcChannelOptions &options)
 QGrpcHttp2Channel::~QGrpcHttp2Channel() = default;
 
 /*!
-    Synchronously calls the RPC method and writes the result to the output parameter \a ret.
-
-    The RPC method name is constructed by concatenating the \a method
-    and \a service parameters and called with the \a args argument.
-    Uses \a options argument to set additional parameter for the call.
+    Returns the host URI for this channel.
 */
-QGrpcStatus QGrpcHttp2Channel::call(QLatin1StringView method, QLatin1StringView service,
-                                    QByteArrayView args, QByteArray &ret,
-                                    const QGrpcCallOptions &options)
+QUrl QGrpcHttp2Channel::hostUri() const
 {
-    QEventLoop loop;
-
-    QNetworkReply *networkReply = dPtr->post(method, service, args, options);
-    QObject::connect(networkReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-
-    // If reply was finished in same stack it doesn't make sense to start event loop
-    if (!networkReply->isFinished())
-        loop.exec();
-
-    QGrpcStatus::StatusCode grpcStatus = QGrpcStatus::StatusCode::Unknown;
-    ret = dPtr->processReply(networkReply, grpcStatus);
-
-    networkReply->deleteLater();
-    qGrpcDebug() << __func__ << "RECV:" << ret.toHex() << "grpcStatus" << grpcStatus;
-    return { grpcStatus, QString::fromUtf8(networkReply->rawHeader(GrpcStatusMessageHeader)) };
+    return d_ptr->hostUri;
 }
 
 /*!
-    Asynchronously calls the RPC method.
-
-    The RPC method name is constructed by concatenating the \a method
-    and \a service parameters and called with the \a args argument.
-    Uses \a options argument to set additional parameter for the call.
-    The method can emit QGrpcCallReply::finished() and QGrpcCallReply::errorOccurred()
-    signals on a QGrpcCallReply returned object.
+    \internal
+    Implementation of unary gRPC call based on \l QNetworkAccessManager.
 */
-std::shared_ptr<QGrpcCallReply> QGrpcHttp2Channel::call(QLatin1StringView method,
-                                                        QLatin1StringView service,
-                                                        QByteArrayView args,
-                                                        const QGrpcCallOptions &options)
+void QGrpcHttp2Channel::call(std::shared_ptr<QGrpcOperationContext> operationContext)
 {
-    std::shared_ptr<QGrpcCallReply> reply(new QGrpcCallReply(serializer()),
-                                          [](QGrpcCallReply *reply) { reply->deleteLater(); });
-
-    QNetworkReply *networkReply = dPtr->post(method, service, args, options);
-
-    auto connection = std::make_shared<QMetaObject::Connection>();
-    auto abortConnection = std::make_shared<QMetaObject::Connection>();
-
-    *connection = QObject::connect(
-            networkReply, &QNetworkReply::finished, reply.get(),
-            [reply, networkReply, connection, abortConnection] {
-                QGrpcStatus::StatusCode grpcStatus = QGrpcStatus::StatusCode::Unknown;
-                QByteArray data = QGrpcHttp2ChannelPrivate::processReply(networkReply, grpcStatus);
-                reply->setMetadata(collectMetadata(networkReply));
-                QObject::disconnect(*connection);
-                QObject::disconnect(*abortConnection);
-
-                qGrpcDebug() << "RECV:" << data;
-                if (QGrpcStatus::StatusCode::Ok == grpcStatus) {
-                    reply->setData(data);
-                    emit reply->finished();
-                } else {
-                    reply->setData({});
-                    emit reply->errorOccurred({ grpcStatus,
-                                                QLatin1StringView(networkReply->rawHeader(
-                                                        GrpcStatusMessageHeader)) });
-                }
-                networkReply->deleteLater();
-            });
-
-    *abortConnection = QObject::connect(reply.get(), &QGrpcCallReply::errorOccurred, networkReply,
-                                        [networkReply, connection,
-                                         abortConnection](const QGrpcStatus &status) {
-                                            if (status.code() == QGrpcStatus::Aborted) {
-                                                QObject::disconnect(*connection);
-                                                QObject::disconnect(*abortConnection);
-
-                                                networkReply->deleteLater();
-                                            }
-                                        });
-    return reply;
+    d_ptr->processOperation(operationContext, true);
 }
 
 /*!
-    Creates and starts a stream to the RPC method.
-
-    The RPC method name is constructed by concatenating the \a method
-    and \a service parameters and called with the \a arg argument.
-    Returns a shared pointer to the QGrpcStream. Uses \a options argument
-    to set additional parameter for the stream.
-
-    Calls QGrpcStream::updateData() when the stream receives data from the server.
-    The method may emit QGrpcStream::errorOccurred() when the stream has terminated with an error.
+    \internal
+    Implementation of server-side gRPC stream based on \l QNetworkAccessManager.
 */
-std::shared_ptr<QGrpcStream> QGrpcHttp2Channel::startStream(QLatin1StringView method,
-                                                            QLatin1StringView service,
-                                                            QByteArrayView arg,
-                                                            const QGrpcCallOptions &options)
+void QGrpcHttp2Channel::serverStream(std::shared_ptr<QGrpcOperationContext> operationContext)
 {
-    QNetworkReply *networkReply = dPtr->post(method, service, arg, options);
+    d_ptr->processOperation(operationContext, true);
+}
 
-    std::shared_ptr<QGrpcStream> grpcStream(new QGrpcStream(method, arg, serializer()));
-    auto finishConnection = std::make_shared<QMetaObject::Connection>();
-    auto abortConnection = std::make_shared<QMetaObject::Connection>();
-    auto readConnection = std::make_shared<QMetaObject::Connection>();
+/*!
+    \internal
+    Implementation of client-side gRPC stream based on \l QNetworkAccessManager.
+*/
+void QGrpcHttp2Channel::clientStream(std::shared_ptr<QGrpcOperationContext> operationContext)
+{
+    d_ptr->processOperation(operationContext);
+}
 
-    *readConnection = QObject::connect(
-            networkReply, &QNetworkReply::readyRead, grpcStream.get(),
-            [networkReply, grpcStream, this] {
-                auto replyIt = dPtr->activeStreamReplies.find(networkReply);
-
-                const QByteArray data = networkReply->readAll();
-                qGrpcDebug() << "RECV data size:" << data.size();
-
-                if (replyIt == dPtr->activeStreamReplies.end()) {
-                    qGrpcDebug() << data.toHex();
-                    int expectedDataSize = QGrpcHttp2ChannelPrivate::getExpectedDataSize(data);
-                    qGrpcDebug() << "First chunk received:" << data.size()
-                                 << "expectedDataSize:" << expectedDataSize;
-
-                    if (expectedDataSize == 0) {
-                        grpcStream->updateData(QByteArray());
-                        return;
-                    }
-
-                    QGrpcHttp2ChannelPrivate::ExpectedData dataContainer{ expectedDataSize,
-                                                                          QByteArray{} };
-                    replyIt = dPtr->activeStreamReplies.insert({ networkReply, dataContainer })
-                                      .first;
-                }
-
-                QGrpcHttp2ChannelPrivate::ExpectedData &dataContainer = replyIt->second;
-                dataContainer.container.append(data);
-
-                qGrpcDebug() << "Processeded chunk:" << data.size()
-                             << "dataContainer:" << dataContainer.container.size()
-                             << "capacity:" << dataContainer.expectedSize;
-                while (dataContainer.container.size() >= dataContainer.expectedSize
-                       && !networkReply->isFinished()) {
-                    qGrpcDebug() << "Full data received:" << data.size()
-                                 << "dataContainer:" << dataContainer.container.size()
-                                 << "capacity:" << dataContainer.expectedSize;
-                    grpcStream->setMetadata(collectMetadata(networkReply));
-                    grpcStream->updateData(dataContainer.container.mid(
-                            GrpcMessageSizeHeaderSize,
-                            dataContainer.expectedSize - GrpcMessageSizeHeaderSize));
-                    dataContainer.container.remove(0, dataContainer.expectedSize);
-                    if (dataContainer.container.size() > GrpcMessageSizeHeaderSize) {
-                        dataContainer.expectedSize = QGrpcHttp2ChannelPrivate::getExpectedDataSize(
-                                dataContainer.container);
-                    } else if (dataContainer.container.size() > 0) {
-                        qGrpcWarning("Invalid container size received, size header is less than 5 "
-                                     "bytes");
-                    }
-                }
-
-                if (dataContainer.container.size() < GrpcMessageSizeHeaderSize
-                    || networkReply->isFinished()) {
-                    dPtr->activeStreamReplies.erase(replyIt);
-                }
-            });
-
-    std::weak_ptr<QGrpcStream> weakGrpcStream(grpcStream);
-    *finishConnection = QObject::connect(
-            networkReply, &QNetworkReply::finished, grpcStream.get(),
-            [weakGrpcStream, service, networkReply, abortConnection, readConnection,
-             finishConnection, this]() {
-                const QString errorString = networkReply->errorString();
-                const QNetworkReply::NetworkError networkError = networkReply->error();
-                QObject::disconnect(*readConnection);
-                QObject::disconnect(*abortConnection);
-
-                dPtr->activeStreamReplies.erase(networkReply);
-                QGrpcHttp2ChannelPrivate::abortNetworkReply(networkReply);
-                networkReply->deleteLater();
-
-                auto grpcStream = weakGrpcStream.lock();
-                if (!grpcStream) {
-                    qGrpcWarning() << "Could not lock gRPC stream pointer.";
-                    return;
-                }
-                qGrpcWarning() << grpcStream->method() << "call" << service
-                               << "stream finished:" << errorString;
-                grpcStream->setMetadata(collectMetadata(networkReply));
-                switch (networkError) {
-                case QNetworkReply::NoError: {
-                    // Reply is closed without network error, but may contain an unhandled data
-                    // TODO: processReply returns the data, that might need the processing. It's
-                    // should be taken into account in new HTTP/2 channel implementation.
-                    QGrpcStatus::StatusCode grpcStatus;
-                    QGrpcHttp2ChannelPrivate::processReply(networkReply, grpcStatus);
-                    if (grpcStatus != QGrpcStatus::StatusCode::Ok) {
-                        emit grpcStream->errorOccurred(
-                                QGrpcStatus{ grpcStatus,
-                                             QLatin1StringView(networkReply->rawHeader(
-                                                     GrpcStatusMessageHeader)) });
-                    }
-                    break;
-                }
-                default:
-                    emit grpcStream->errorOccurred(
-                            QGrpcStatus{ StatusCodeMap.at(networkError),
-                                         "%1 call %2 stream failed: %3"_L1.arg(
-                                                 service, grpcStream->method(), errorString) });
-                    break;
-                }
-                emit grpcStream->finished();
-            });
-
-    *abortConnection = QObject::connect(
-            grpcStream.get(), &QGrpcStream::finished, networkReply,
-            [networkReply, finishConnection, abortConnection, readConnection] {
-                QObject::disconnect(*finishConnection);
-                QObject::disconnect(*readConnection);
-                QObject::disconnect(*abortConnection);
-
-                QGrpcHttp2ChannelPrivate::abortNetworkReply(networkReply);
-                networkReply->deleteLater();
-            });
-
-    return grpcStream;
+/*!
+    \internal
+    Implementation of bidirectional gRPC stream based on \l QNetworkAccessManager.
+*/
+void QGrpcHttp2Channel::bidiStream(std::shared_ptr<QGrpcOperationContext> operationContext)
+{
+    d_ptr->processOperation(operationContext);
 }
 
 /*!
@@ -470,8 +892,9 @@ std::shared_ptr<QGrpcStream> QGrpcHttp2Channel::startStream(QLatin1StringView me
 */
 std::shared_ptr<QAbstractProtobufSerializer> QGrpcHttp2Channel::serializer() const
 {
-    // TODO: make selection based on credentials or channel settings
-    return std::make_shared<QProtobufSerializer>();
+    return channelOptions().serializationFormat().serializer();
 }
 
 QT_END_NAMESPACE
+
+#include "qgrpchttp2channel.moc"

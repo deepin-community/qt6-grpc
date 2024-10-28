@@ -1,5 +1,8 @@
 # Copyright (C) 2022 The Qt Company Ltd.
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
+
+cmake_minimum_required(VERSION 3.16)
+project(MagicServerRunner LANGUAGES CXX)
 
 # Qt6::Grpc module is not used directly in this project. But this allows to find Qt6::Grpc's
 # dependencies without setting extra cmake module paths.
@@ -12,6 +15,16 @@ if(NOT TARGET WrapgRPC::WrapgRPCPlugin OR NOT TARGET WrapProtoc::WrapProtoc
     message(WARNING "Dependencies of QtGrpc test server not found. Skipping.")
     return()
 endif()
+
+if(MINGW)
+    message(WARNING "${PROJECT_NAME} uses reference grpc++ library that doesn't officially support"
+        " MinGW. Please use the MSVC compiler to build this example. The correct work is not"
+        " guaranteed otherwise.")
+endif()
+
+# Avoid "Protobuf requires at least C++11." errors
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(proto_files "${CMAKE_CURRENT_LIST_DIR}/../proto/exampleservice.proto")
 set(out_dir ${CMAKE_CURRENT_BINARY_DIR})

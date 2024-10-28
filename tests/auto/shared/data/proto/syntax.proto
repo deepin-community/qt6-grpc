@@ -59,8 +59,12 @@ message lowerCaseMessageName {
     enum nestedLowerCaseEnum {
         val0 = 0;
     }
+    enum NestedUpperCaseEnum {
+        Val0 = 0;
+    }
     sint32 testField = 1;
     nestedLowerCaseMessage testField1 = 2;
+    NestedUpperCaseMessage testField2 = 3;
 }
 
 message LowerCaseFieldMessageName {
@@ -80,8 +84,48 @@ message MessageEnumReserved {
         enumValue2 = 2;
     }
 
+    enum UpperCaseEnum {
+        EnumValue0 = 0;
+        EnumValue1 = 1;
+        EnumValue2 = 2;
+    }
+
     enum UnderScoreEnum {
         _enumUnderscoreValue0 = 0;
         _EnumUnderscoreValue1 = 1;
     }
+}
+
+message CppKeywords {
+    bool private = 1;
+    bool if = 2;
+    bool else = 3;
+    bool for = 4;
+    bool while = 5;
+    bool switch = 6;
+    bool case = 7;
+    bool do = 8;
+    bool goto = 9;
+}
+
+message int {
+    enum long {
+        bool = 0;
+        char = 1;
+        float = 2;
+        double = 3;
+        unsigned = 4;
+    }
+
+    long enum = 1;
+}
+
+message if {
+    bool else = 1;
+}
+
+message QtCppKeywords {
+    sint32 slots = 1;
+    sint32 signals = 2;
+    bool emit = 3;
 }

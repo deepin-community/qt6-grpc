@@ -2,76 +2,140 @@
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-#include <QtCore/QThread>
-
-#include "qgrpcstream.h"
+#include <QtGrpc/qgrpcoperationcontext.h>
+#include <QtGrpc/qgrpcstream.h>
 
 QT_BEGIN_NAMESPACE
 
 /*!
-    \class QGrpcStream
+    \class QGrpcServerStream
     \inmodule QtGrpc
+    \since 6.7
 
-    \brief The QGrpcStream class implements logic to handle stream communication
-    in the Grpc channel.
+    \brief The QGrpcServerStream class provides the interface to access the
+    server-side gRPC stream functionality from gRPC client side.
+
+    The QGrpcServerStream object is owned by the client object that created it.
 */
 
 /*!
-    \fn void QGrpcStream::messageReceived()
+    \fn void QGrpcServerStream::messageReceived()
 
     The signal is emitted when the stream receives an updated value from server.
 */
 
-QGrpcStream::QGrpcStream(QLatin1StringView method, QByteArrayView arg,
-                         std::shared_ptr<QAbstractProtobufSerializer> serializer)
-    : QGrpcOperation(std::move(serializer)), m_method(method.data(), method.size()),
-      m_arg(arg.toByteArray())
+QGrpcServerStream::QGrpcServerStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                                     QObject *parent)
+    : QGrpcOperation(std::move(operationContext), parent)
+{
+    QObject::connect(&QGrpcOperation::context(), &QGrpcOperationContext::messageReceived, this,
+                     &QGrpcServerStream::messageReceived);
+}
+
+/*!
+    Destroys the QGrpcServerStream object.
+*/
+QGrpcServerStream::~QGrpcServerStream() = default;
+
+bool QGrpcServerStream::event(QEvent *event)
+{
+    return QGrpcOperation::event(event);
+}
+
+/*!
+    \class QGrpcClientStream
+    \inmodule QtGrpc
+    \since 6.7
+
+    \brief The QGrpcClientStream class provides the interface to access the
+    client-side gRPC stream functionality from gRPC client side.
+*/
+
+QGrpcClientStream::QGrpcClientStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                                     QObject *parent)
+    : QGrpcOperation(std::move(operationContext), parent)
 {
 }
 
 /*!
-    Destroys the QGrpcStream object.
+    Destroys the QGrpcClientStream object.
 */
-QGrpcStream::~QGrpcStream() = default;
+QGrpcClientStream::~QGrpcClientStream() = default;
 
 /*!
-    Cancel this stream and try to abort any call active on any channel
-    in the stream.
+    Serializes \a message and sends it to the server.
 */
-void QGrpcStream::abort()
+void QGrpcClientStream::writeMessage(const QProtobufMessage &message)
 {
-    if (thread() != QThread::currentThread())
-        QMetaObject::invokeMethod(this, &QGrpcStream::finished, Qt::BlockingQueuedConnection);
-    else
-        emit finished();
+    QByteArray data = QGrpcOperation::context().serializer()->serialize(&message);
+    emit QGrpcOperation::context().writeMessageRequested(data);
 }
 
 /*!
-    Returns the method for this stream.
+    \since 6.8
+    Ends the stream from the client side (half-closing). The server is still allowed to send
+    responses after this call.
 */
-QLatin1StringView QGrpcStream::method() const
+void QGrpcClientStream::writesDone()
 {
-    return QLatin1StringView(m_method);
+    emit QGrpcOperation::context().writesDoneRequested();
+}
+
+bool QGrpcClientStream::event(QEvent *event)
+{
+    return QGrpcOperation::event(event);
 }
 
 /*!
-    Returns serialized arguments for this stream.
+    \class QGrpcBidiStream
+    \inmodule QtGrpc
+    \since 6.7
+
+    \brief The QGrpcBidiStream class provides the interface to access the
+    bidirectional gRPC stream functionality from gRPC client side.
 */
-QByteArrayView QGrpcStream::arg() const
+
+/*!
+    \fn void QGrpcBidiStream::messageReceived()
+
+    The signal is emitted when the stream receives an updated value from server.
+*/
+
+QGrpcBidiStream::QGrpcBidiStream(std::shared_ptr<QGrpcOperationContext> operationContext,
+                                 QObject *parent)
+    : QGrpcOperation(std::move(operationContext), parent)
 {
-    return m_arg;
+    QObject::connect(&QGrpcOperation::context(), &QGrpcOperationContext::messageReceived, this,
+                     &QGrpcBidiStream::messageReceived);
 }
 
 /*!
-    Sets underlying data field with \a data and emits QGrpcStream::messageReceived signal.
-
-    Should be used by QAbstractGrpcChannel implementations,
-    to update data in a stream and notify clients about stream updates.
+    Destroys the QGrpcBidiStream object.
 */
-void QGrpcStream::updateData(const QByteArray &data)
+QGrpcBidiStream::~QGrpcBidiStream() = default;
+
+/*!
+    Serializes \a message and sends it to the server.
+*/
+void QGrpcBidiStream::writeMessage(const QProtobufMessage &message)
 {
-    setData(QByteArray(data));
-    emit messageReceived();
+    QByteArray data = QGrpcOperation::context().serializer()->serialize(&message);
+    emit QGrpcOperation::context().writeMessageRequested(data);
+}
+
+/*!
+    \since 6.8
+    Ends the stream from the client side (half-closing). The server is still allowed to send
+    responses after this call.
+*/
+void QGrpcBidiStream::writesDone()
+{
+    emit QGrpcOperation::context().writesDoneRequested();
+}
+
+bool QGrpcBidiStream::event(QEvent *event)
+{
+    return QGrpcOperation::event(event);
 }
 
 QT_END_NAMESPACE

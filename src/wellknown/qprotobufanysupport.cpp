@@ -1,66 +1,88 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
-#include <QtProtobufWellKnownTypes/qtprotobufwellknowntypesglobal.h>
+#include <QtProtobufWellKnownTypes/qprotobufanysupport.h>
 
-#include <QtProtobuf/qprotobufserializer.h>
-#include <QtProtobuf/private/qprotobufserializer_p.h>
+#include <QtProtobufWellKnownTypes/google/protobuf/any.qpb.h>
 
-#include "qprotobufanysupport.h"
-
-#include <google/protobuf/any.qpb.h>
+#include <QtProtobuf/private/qprotobufmessage_p.h>
+#include <QtProtobuf/private/qprotobufregistration_p.h>
+#include <QtProtobuf/qabstractprotobufserializer.h>
+#include <QtProtobuf/qprotobufpropertyordering.h>
 
 QT_BEGIN_NAMESPACE
+
+namespace {
+QAnyStringView defaultUrlPrefix()
+{
+    // The URL should describe the type of the serialized message.
+    // We don't have support for this, so users have to provide the correct URL.
+    // We won't check if it's correct.
+    return u"type.googleapis.com";
+}
+}
 
 namespace QtProtobuf {
 using namespace QtProtobufPrivate;
 
-class AnyPrivate
+class AnyPrivate : public QProtobufMessagePrivate
 {
 public:
+    AnyPrivate(const QMetaObject *metaObject,
+               const QtProtobufPrivate::QProtobufPropertyOrdering *ordering);
+
+    static const AnyPrivate *get(const Any *any) { return any->d_func(); }
+
     QString typeUrl;
     QByteArray value;
-
-    static AnyPrivate *get(const Any *any) { return any->d_ptr; }
 };
 
-static void serializerProxy(const QProtobufSerializer *serializer, const QVariant &object,
-                            const QProtobufPropertyOrderingInfo &fieldInfo, QByteArray &output)
+AnyPrivate::AnyPrivate(const QMetaObject *metaObject,
+                       const QtProtobufPrivate::QProtobufPropertyOrdering *ordering)
+    : QProtobufMessagePrivate(metaObject, ordering)
 {
-    if (object.isNull())
+}
+
+static void serializerProxy(QtProtobufPrivate::MessageFieldSerializer serializer,
+                            const void *object, const QProtobufFieldInfo &fieldInfo)
+{
+    if (object == nullptr)
         return;
 
-    Any any = object.value<Any>();
+    const auto &any = *static_cast<const Any *>(object);
     if (any.typeUrl().isEmpty())
         return;
 
     google::protobuf::Any realAny;
     realAny.setValue(any.value());
     realAny.setTypeUrl(any.typeUrl());
-    output.append(serializer->serializeObject(&realAny, google::protobuf::Any::propertyOrdering,
-                                              fieldInfo));
+    serializer(&realAny, fieldInfo);
 }
 
-static void listSerializerProxy(const QProtobufSerializer *serializer, const QVariant &object,
-                                const QProtobufPropertyOrderingInfo &fieldInfo, QByteArray &output)
+static void listSerializerProxy(QtProtobufPrivate::MessageFieldSerializer serializer,
+                                const void *object, const QProtobufFieldInfo &fieldInfo)
 {
-    const auto anyList = object.value<QList<Any>>();
+    if (object == nullptr)
+        return;
+
+    const auto &anyList = *static_cast<const QList<Any> *>(object);
     for (const Any &any : anyList) {
         google::protobuf::Any realAny;
         realAny.setValue(any.value());
         realAny.setTypeUrl(any.typeUrl());
-        output.append(serializer->serializeListObject(&realAny,
-                google::protobuf::Any::propertyOrdering, fieldInfo));
+        serializer(&realAny, fieldInfo);
     }
 }
 
-static void listDeserializerProxy(const QProtobufSerializer *deserializer,
-                              QProtobufSelfcheckIterator &it, QVariant &object)
+static void listDeserializerProxy(QtProtobufPrivate::MessageFieldDeserializer deserializer,
+                                  void *object)
 {
-    auto anyList = object.value<QList<Any>>();
-    const auto &ordering = google::protobuf::Any::propertyOrdering;
+    if (object == nullptr)
+        return;
+
+    auto &anyList = *static_cast<QList<Any> *>(object);
     google::protobuf::Any realAny;
-    if (deserializer->deserializeObject(&realAny, ordering, it)) {
+    if (deserializer(&realAny)) {
         Any any;
         any.setTypeUrl(realAny.typeUrl());
         any.setValue(realAny.value());
@@ -68,29 +90,28 @@ static void listDeserializerProxy(const QProtobufSerializer *deserializer,
     } else {
         return; // unexpected end of data
     }
-    object.setValue(std::move(anyList));
 }
 
-static void deserializerProxy(const QProtobufSerializer *deserializer,
-                              QProtobufSelfcheckIterator &it, QVariant &object)
+static void deserializerProxy(QtProtobufPrivate::MessageFieldDeserializer deserializer,
+                              void *object)
 {
+    if (object == nullptr)
+        return;
+
     google::protobuf::Any realAny;
-    if (deserializer->deserializeObject(&realAny, google::protobuf::Any::propertyOrdering, it)) {
-        Any any;
+    if (deserializer(&realAny)) {
+        auto &any = *static_cast<Any *>(object);
         any.setTypeUrl(realAny.typeUrl());
         any.setValue(realAny.value());
-        object.setValue(std::move(any));
     }
 }
 
 void Any::registerTypes()
 {
-    QtProtobufPrivate::registerHandler(
-            QMetaType::fromType<Any>(),
-            SerializationHandler{ &serializerProxy, &deserializerProxy });
-    QtProtobufPrivate::registerHandler(
-            QMetaType::fromType<QList<Any>>(),
-            { &listSerializerProxy, &listDeserializerProxy });
+    QtProtobufPrivate::registerHandler(QMetaType::fromType<Any>(), &serializerProxy,
+                                       &deserializerProxy);
+    QtProtobufPrivate::registerHandler(QMetaType::fromType<QList<Any>>(), &listSerializerProxy,
+                                       &listDeserializerProxy);
 }
 
 /*!
@@ -98,17 +119,22 @@ void Any::registerTypes()
     \brief A helper class to simplify working with the protobuf Any type.
     \inmodule QtProtobufWellKnownTypes
 
+    \compares equality
+
     The Any class enables easy casting to and from other types using as() and
     fromMessage().
 
-    It is the type used in code generated by \l{qtprotobufgen} when a message
-    contains a field of the google.protobuf.Any type.
+    It is the type used in code generated by \l{The qtprotobufgen Tool}
+    {qtprotobufgen} when a message contains a field of the \c
+    google.protobuf.Any type.
 */
 
 /*!
     Constructs a defaulted, empty, instance of Any.
 */
-Any::Any() : QProtobufMessage(&Any::staticMetaObject), d_ptr(new AnyPrivate())
+Any::Any()
+    : QProtobufMessage(*new AnyPrivate(&Any::staticMetaObject,
+                                       &google::protobuf::Any::staticPropertyOrdering))
 {
 }
 
@@ -116,30 +142,19 @@ Any::Any() : QProtobufMessage(&Any::staticMetaObject), d_ptr(new AnyPrivate())
     Destroys this instance of Any
 */
 Any::~Any()
-{
-    delete d_ptr;
-}
+    = default;
 
 /*!
     Constructs a copy of \a other.
 */
 Any::Any(const Any &other)
-    : QProtobufMessage(other),
-      d_ptr(new AnyPrivate(*other.d_ptr))
-{
-}
+    = default;
 
 /*!
     Copies the data of \a other into this instance.
 */
 Any &Any::operator=(const Any &other)
-{
-    if (this == &other)
-        return *this;
-    QProtobufMessage::operator=(other);
-    *d_ptr = *other.d_ptr;
-    return *this;
-}
+    = default;
 
 /*!
     Returns the type URL of the Any object.
@@ -153,7 +168,8 @@ Any &Any::operator=(const Any &other)
 */
 QString Any::typeUrl() const
 {
-    return d_func()->typeUrl;
+    Q_D(const Any);
+    return d->typeUrl;
 }
 
 /*!
@@ -165,7 +181,8 @@ QString Any::typeUrl() const
 */
 QByteArray Any::value() const
 {
-    return d_func()->value;
+    Q_D(const Any);
+    return d->value;
 }
 
 /*!
@@ -198,10 +215,10 @@ void Any::setValue(const QByteArray &value)
 }
 
 /*!
-    \fn template <typename T> std::optional<T> Any::as() const
+    \fn template <typename T> std::optional<T> Any::unpack(QAbstractProtobufSerializer *serializer) const
 
     This function compares the message name of T with the value of typeUrl()
-    before deserializing the data.
+    before deserializing the data using \a serializer.
 
     If the verification or deserialization fails it will return
     \c{std::nullopt}.
@@ -210,21 +227,25 @@ void Any::setValue(const QByteArray &value)
     \c{Q_PROTOBUF_OBJECT} macro or (for a nested Any message) be Any itself.
 */
 
-bool Any::asImpl(QProtobufMessage *message,
-                 QtProtobufPrivate::QProtobufPropertyOrdering ordering) const
+bool Any::unpackImpl(QAbstractProtobufSerializer *serializer, QProtobufMessage *message) const
 {
-    QProtobufSerializer serializer;
+    Q_ASSERT_X(serializer != nullptr, "Any::unpackImpl", "serializer is null");
     QString tUrl = typeUrl();
     qsizetype lastSegmentIndex = tUrl.lastIndexOf(u'/') + 1;
-    if (QStringView(tUrl).mid(lastSegmentIndex).compare(ordering.getMessageFullName()) != 0)
+    if (QStringView(tUrl)
+            .mid(lastSegmentIndex)
+            .compare(message->propertyOrdering()->messageFullName())
+        != 0) {
         return false;
-    return serializer.deserializeMessage(message, ordering, value());
+    }
+    return message->deserialize(serializer, value());
 }
 
-std::optional<Any> Any::asAnyImpl() const
+template <>
+std::optional<Any> Any::unpack<Any>(QAbstractProtobufSerializer *serializer) const
 {
     google::protobuf::Any realAny;
-    if (!asImpl(&realAny, google::protobuf::Any::propertyOrdering))
+    if (!unpackImpl(serializer, &realAny))
         return std::nullopt;
     Any any;
     any.setTypeUrl(realAny.typeUrl());
@@ -233,50 +254,51 @@ std::optional<Any> Any::asAnyImpl() const
 }
 
 /*!
-    \fn template <typename T> static Any Any::fromMessage(const T &message, QAnyStringView typeUrlPrefix)
+    \fn template <typename T> static Any Any::fromMessage(QAbstractProtobufSerializer *serializer,
+        const T &message, QAnyStringView typeUrlPrefix)
 
     This function serializes the given \a message as the value of the returned
     Any instance. This instance's typeUrl() is constructed from a prefix, a
     forward slash and the message name obtained from
-    \c{T::propertyOrdering.getMessageFullName()}. If \a typeUrlPrefix is
-    supplied, it is used as prefix, otherwise \c{"type.googleapis.com"} is used.
+    \l{QProtobufMessage::propertyOrdering} using \a serializer. If \a
+    typeUrlPrefix is supplied, it is used as prefix, otherwise
+    \c{"type.googleapis.com"} is used.
 
     \note T must be a class derived from QProtobufMessage with the
     \c{Q_PROTOBUF_OBJECT} macro or (for a nested Any message) be Any itself.
 */
 
-Any Any::fromMessageImpl(const QProtobufMessage *message,
-                         QtProtobufPrivate::QProtobufPropertyOrdering ordering,
+Any Any::fromMessageImpl(QAbstractProtobufSerializer *serializer, const QProtobufMessage *message,
                          QAnyStringView typeUrlPrefix)
 {
-    QProtobufSerializer serializer;
     Any any;
-    any.setValue(serializer.serializeMessage(message, ordering));
-    any.setTypeUrl(typeUrlPrefix.toString() + u'/' + ordering.getMessageFullName().toString());
+    any.setValue(message->serialize(serializer));
+    any.setTypeUrl(typeUrlPrefix.toString() + u'/'
+                   + message->propertyOrdering()->messageFullName().toString());
     return { any };
 }
 
+Any Any::fromMessageImpl(QAbstractProtobufSerializer *serializer, const QProtobufMessage *message)
+{
+    return fromMessageImpl(serializer, message, defaultUrlPrefix());
+}
+
 // Used to handle nested Any messages.
-Any Any::fromAnyMessageImpl(const Any *message, QAnyStringView typeUrlPrefix)
+Any Any::fromAnyMessageImpl(QAbstractProtobufSerializer *serializer,
+                            const Any *message, QAnyStringView typeUrlPrefix)
 {
     using RealAny = google::protobuf::Any;
     RealAny realAny;
     realAny.setTypeUrl(message->typeUrl());
     realAny.setValue(message->value());
-    return fromMessageImpl(&realAny, RealAny::propertyOrdering, typeUrlPrefix);
+    return fromMessageImpl(serializer, &realAny, typeUrlPrefix);
 }
 
-QAnyStringView Any::defaultUrlPrefix()
+// Used to handle nested Any messages.
+Any Any::fromAnyMessageImpl(QAbstractProtobufSerializer *serializer,
+                            const Any *message)
 {
-    // The URL should describe the type of the serialized message.
-    // We don't have support for this, so users have to provide the correct URL.
-    // We won't check if it's correct.
-    return u"type.googleapis.com";
-}
-
-bool Any::equals(const Any &other) const noexcept
-{
-    return typeUrl() == other.typeUrl() && value() == other.value();
+    return fromAnyMessageImpl(serializer, message, defaultUrlPrefix());
 }
 
 /*!
@@ -288,6 +310,13 @@ bool Any::equals(const Any &other) const noexcept
     \fn bool Any::operator!=(const Any &lhs, const Any &rhs)
     Returns true if the two instances of Any, \a lhs and \a rhs, are distinct.
 */
+
+bool comparesEqual(const Any &lhs, const Any &rhs) noexcept
+{
+    return lhs.d_func()->typeUrl == rhs.d_func()->typeUrl &&
+        lhs.d_func()->value == rhs.d_func()->value;
+}
+
 }
 
 QT_END_NAMESPACE

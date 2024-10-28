@@ -1,173 +1,173 @@
-# SymbolsHelper-Confirmed: 6.6.1 armel armhf i386 powerpc riscv64
+# SymbolsHelper-Confirmed: 6.8.0 armel armhf i386 powerpc riscv64
 libQt6Grpc.so.6 libqt6grpc6 #MINVER#
 * Build-Depends-Package: qt6-grpc-dev
- Qt_6@Qt_6 6.6.0
- Qt_6_PRIVATE_API@Qt_6_PRIVATE_API 6.6.0
- _ZN11QGrpcStatus16staticMetaObjectE@Qt_6 6.6.0
- _ZN11QGrpcStatusC1ENS_10StatusCodeERK7QString@Qt_6 6.6.0
- _ZN11QGrpcStatusC1EOS_@Qt_6 6.6.0
- _ZN11QGrpcStatusC1ERKS_@Qt_6 6.6.0
- _ZN11QGrpcStatusC2ENS_10StatusCodeERK7QString@Qt_6 6.6.0
- _ZN11QGrpcStatusC2EOS_@Qt_6 6.6.0
- _ZN11QGrpcStatusC2ERKS_@Qt_6 6.6.0
- _ZN11QGrpcStatusD1Ev@Qt_6 6.6.0
- _ZN11QGrpcStatusD2Ev@Qt_6 6.6.0
- _ZN11QGrpcStatusaSEOS_@Qt_6 6.6.0
- _ZN11QGrpcStatusaSERKS_@Qt_6 6.6.0
- _ZN11QGrpcStream10updateDataERK10QByteArray@Qt_6 6.6.0
- _ZN11QGrpcStream11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.6.0
- _ZN11QGrpcStream11qt_metacastEPKc@Qt_6 6.6.0
- _ZN11QGrpcStream15messageReceivedEv@Qt_6 6.6.0
- _ZN11QGrpcStream16staticMetaObjectE@Qt_6 6.6.0
- _ZN11QGrpcStream5abortEv@Qt_6 6.6.0
- _ZN11QGrpcStreamC1E13QLatin1String14QByteArrayViewSt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN11QGrpcStreamC2E13QLatin1String14QByteArrayViewSt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN11QGrpcStreamD0Ev@Qt_6 6.6.0
- _ZN11QGrpcStreamD1Ev@Qt_6 6.6.0
- _ZN11QGrpcStreamD2Ev@Qt_6 6.6.0
- _ZN12QGrpcChannel11startStreamE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN12QGrpcChannel4callE13QLatin1StringS0_14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN12QGrpcChannel4callE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN12QGrpcChannelC1ERK19QGrpcChannelOptionsNS_28NativeGrpcChannelCredentialsE@Qt_6 6.6.0
- _ZN12QGrpcChannelC2ERK19QGrpcChannelOptionsNS_28NativeGrpcChannelCredentialsE@Qt_6 6.6.0
- _ZN12QGrpcChannelD0Ev@Qt_6 6.6.0
- _ZN12QGrpcChannelD1Ev@Qt_6 6.6.0
- _ZN12QGrpcChannelD2Ev@Qt_6 6.6.0
- _ZN14QGrpcCallReply11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.6.0
- _ZN14QGrpcCallReply11qt_metacastEPKc@Qt_6 6.6.0
- _ZN14QGrpcCallReply16staticMetaObjectE@Qt_6 6.6.0
- _ZN14QGrpcCallReply5abortEv@Qt_6 6.6.0
- _ZN14QGrpcCallReplyC1ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN14QGrpcCallReplyC2ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN14QGrpcCallReplyD0Ev@Qt_6 6.6.0
- _ZN14QGrpcCallReplyD1Ev@Qt_6 6.6.0
- _ZN14QGrpcCallReplyD2Ev@Qt_6 6.6.0
- _ZN14QGrpcOperation11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.6.0
- _ZN14QGrpcOperation11qt_metacastEPKc@Qt_6 6.6.0
- _ZN14QGrpcOperation11setMetadataEOSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.6.0
- _ZN14QGrpcOperation11setMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.6.0
- _ZN14QGrpcOperation13errorOccurredERK11QGrpcStatus@Qt_6 6.6.0
- _ZN14QGrpcOperation16staticMetaObjectE@Qt_6 6.6.0
- _ZN14QGrpcOperation7setDataEO10QByteArray@Qt_6 6.6.0
- _ZN14QGrpcOperation7setDataERK10QByteArray@Qt_6 6.6.0
- _ZN14QGrpcOperation8finishedEv@Qt_6 6.6.0
- _ZN14QGrpcOperationC1ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN14QGrpcOperationC2ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.6.0
- _ZN14QGrpcOperationD0Ev@Qt_6 6.6.0
- _ZN14QGrpcOperationD1Ev@Qt_6 6.6.0
- _ZN14QGrpcOperationD2Ev@Qt_6 6.6.0
- (subst)_ZN16QGrpcCallOptions12withDeadlineENSt6chrono8durationI{int64_t}St5ratioIL{int64_t}1EL{int64_t}1000EEEE@Qt_6 6.6.0
- _ZN16QGrpcCallOptions12withMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.6.0
- _ZN16QGrpcCallOptions20withMaxRetryAttemptsEx@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsC1ERKS_@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsC1Ev@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsC2ERKS_@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsC2Ev@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsD1Ev@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsD2Ev@Qt_6 6.6.0
- _ZN16QGrpcCallOptionsaSERKS_@Qt_6 6.6.0
- _ZN17QGrpcHttp2Channel11startStreamE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN17QGrpcHttp2Channel4callE13QLatin1StringS0_14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN17QGrpcHttp2Channel4callE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN17QGrpcHttp2ChannelC1ERK19QGrpcChannelOptions@Qt_6 6.6.0
- _ZN17QGrpcHttp2ChannelC2ERK19QGrpcChannelOptions@Qt_6 6.6.0
- _ZN17QGrpcHttp2ChannelD0Ev@Qt_6 6.6.0
- _ZN17QGrpcHttp2ChannelD1Ev@Qt_6 6.6.0
- _ZN17QGrpcHttp2ChannelD2Ev@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient11qt_metacastEPKc@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient11startStreamE13QLatin1String14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient13attachChannelERKSt10shared_ptrI20QAbstractGrpcChannelE@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient13errorOccurredERK11QGrpcStatus@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient16staticMetaObjectE@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient26handleDeserializationErrorERKN27QAbstractProtobufSerializer20DeserializationErrorE@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient4callE13QLatin1String14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN19QAbstractGrpcClient4callE13QLatin1String14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.6.0
- _ZN19QAbstractGrpcClientC1E13QLatin1StringP7QObject@Qt_6 6.6.0
- _ZN19QAbstractGrpcClientC2E13QLatin1StringP7QObject@Qt_6 6.6.0
- _ZN19QAbstractGrpcClientD0Ev@Qt_6 6.6.0
- _ZN19QAbstractGrpcClientD1Ev@Qt_6 6.6.0
- _ZN19QAbstractGrpcClientD2Ev@Qt_6 6.6.0
- (subst)_ZN19QGrpcChannelOptions12withDeadlineENSt6chrono8durationI{int64_t}St5ratioIL{int64_t}1EL{int64_t}1000EEEE@Qt_6 6.6.0
- _ZN19QGrpcChannelOptions12withMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.6.0
- _ZN19QGrpcChannelOptions20withSslConfigurationERK17QSslConfiguration@Qt_6 6.6.0
- _ZN19QGrpcChannelOptions8withHostERK4QUrl@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsC1ERK4QUrl@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsC1ERKS_@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsC2ERK4QUrl@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsC2ERKS_@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsD1Ev@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsD2Ev@Qt_6 6.6.0
- _ZN19QGrpcChannelOptionsaSERKS_@Qt_6 6.6.0
- _ZN20QAbstractGrpcChannelC1Ev@Qt_6 6.6.0
- _ZN20QAbstractGrpcChannelC2Ev@Qt_6 6.6.0
- _ZN20QAbstractGrpcChannelD0Ev@Qt_6 6.6.0
- _ZN20QAbstractGrpcChannelD1Ev@Qt_6 6.6.0
- _ZN20QAbstractGrpcChannelD2Ev@Qt_6 6.6.0
- _ZNK11QGrpcStatus4codeEv@Qt_6 6.6.0
- _ZNK11QGrpcStatus7messageEv@Qt_6 6.6.0
- _ZNK11QGrpcStream10metaObjectEv@Qt_6 6.6.0
- _ZNK11QGrpcStream3argEv@Qt_6 6.6.0
- _ZNK11QGrpcStream6methodEv@Qt_6 6.6.0
- _ZNK12QGrpcChannel10serializerEv@Qt_6 6.6.0
- _ZNK14QGrpcCallReply10metaObjectEv@Qt_6 6.6.0
- _ZNK14QGrpcOperation10metaObjectEv@Qt_6 6.6.0
- _ZNK14QGrpcOperation10serializerEv@Qt_6 6.6.0
- _ZNK14QGrpcOperation4dataEv@Qt_6 6.6.0
- _ZNK14QGrpcOperation8metadataEv@Qt_6 6.6.0
- _ZNK16QGrpcCallOptions16maxRetryAttemptsEv@Qt_6 6.6.0
- _ZNK16QGrpcCallOptions8deadlineEv@Qt_6 6.6.0
- _ZNK16QGrpcCallOptions8metadataEv@Qt_6 6.6.0
- _ZNK17QGrpcHttp2Channel10serializerEv@Qt_6 6.6.0
- _ZNK19QAbstractGrpcClient10metaObjectEv@Qt_6 6.6.0
- _ZNK19QAbstractGrpcClient10serializerEv@Qt_6 6.6.0
- _ZNK19QGrpcChannelOptions16sslConfigurationEv@Qt_6 6.6.0
- _ZNK19QGrpcChannelOptions4hostEv@Qt_6 6.6.0
- _ZNK19QGrpcChannelOptions8deadlineEv@Qt_6 6.6.0
- _ZNK19QGrpcChannelOptions8metadataEv@Qt_6 6.6.0
- _ZTI11QGrpcStream@Qt_6 6.6.0
- _ZTI12QGrpcChannel@Qt_6 6.6.0
- _ZTI14QGrpcCallReply@Qt_6 6.6.0
- _ZTI14QGrpcOperation@Qt_6 6.6.0
- _ZTI17QGrpcHttp2Channel@Qt_6 6.6.0
- _ZTI19QAbstractGrpcClient@Qt_6 6.6.0
- _ZTI20QAbstractGrpcChannel@Qt_6 6.6.0
- (arch=armel riscv64)_ZTIN9__gnu_cxx7__mutexE@Qt_6 6.6.1
- _ZTINSt13__future_base13_State_baseV2E@Qt_6 6.6.0
- (arch=armel riscv64)_ZTISt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTISt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- (arch=armel riscv64)_ZTISt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTISt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- _ZTISt19_Sp_make_shared_tag@Qt_6 6.6.0
- _ZTS11QGrpcStream@Qt_6 6.6.0
- _ZTS12QGrpcChannel@Qt_6 6.6.0
- _ZTS14QGrpcCallReply@Qt_6 6.6.0
- _ZTS14QGrpcOperation@Qt_6 6.6.0
- _ZTS17QGrpcHttp2Channel@Qt_6 6.6.0
- _ZTS19QAbstractGrpcClient@Qt_6 6.6.0
- _ZTS20QAbstractGrpcChannel@Qt_6 6.6.0
- (arch=armel riscv64)_ZTSN9__gnu_cxx7__mutexE@Qt_6 6.6.1
- _ZTSNSt13__future_base13_State_baseV2E@Qt_6 6.6.0
- _ZTSNSt13__future_base7_ResultIvEE@Qt_6 6.6.0
- (arch=armel riscv64)_ZTSSt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- (arch=armel riscv64)_ZTSSt15_Sp_counted_ptrIP11QGrpcStreamLN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt15_Sp_counted_ptrIP11QGrpcStreamLN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- (arch=armel riscv64)_ZTSSt15_Sp_counted_ptrIP14QGrpcCallReplyLN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt15_Sp_counted_ptrIP14QGrpcCallReplyLN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- (arch=armel riscv64)_ZTSSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- _ZTSSt19_Sp_make_shared_tag@Qt_6 6.6.0
- (arch=armel riscv64)_ZTSSt23_Sp_counted_ptr_inplaceI19QProtobufSerializerSaIvELN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt23_Sp_counted_ptr_inplaceI19QProtobufSerializerSaIvELN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- (arch=armel riscv64)_ZTSSt23_Sp_counted_ptr_inplaceIN11QMetaObject10ConnectionESaIvELN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.6.1
- (arch=!armel !riscv64)_ZTSSt23_Sp_counted_ptr_inplaceIN11QMetaObject10ConnectionESaIvELN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.6.1
- _ZTV11QGrpcStream@Qt_6 6.6.0
- _ZTV12QGrpcChannel@Qt_6 6.6.0
- _ZTV14QGrpcCallReply@Qt_6 6.6.0
- _ZTV14QGrpcOperation@Qt_6 6.6.0
- _ZTV17QGrpcHttp2Channel@Qt_6 6.6.0
- _ZTV19QAbstractGrpcClient@Qt_6 6.6.0
- _ZTV20QAbstractGrpcChannel@Qt_6 6.6.0
- _ZZNSt19_Sp_make_shared_tag5_S_tiEvE5__tag@Qt_6 6.6.0
- (optional=templinst)_ZZNSt9once_flag18_Prepare_executionC4IZSt9call_onceIMNSt13__future_base13_State_baseV2EFvPSt8functionIFSt10unique_ptrINS3_12_Result_baseENS7_8_DeleterEEvEEPbEJPS4_SC_SD_EEvRS_OT_DpOT0_EUlvE_EERSI_ENUlvE_4_FUNEv@Qt_6 6.6.0
+ Qt_6@Qt_6 6.8.0
+ Qt_6_PRIVATE_API@Qt_6_PRIVATE_API 6.8.0
+ _ZN11QGrpcStatus16staticMetaObjectE@Qt_6 6.8.0
+ _ZN11QGrpcStatusC1ENS_10StatusCodeERK7QString@Qt_6 6.8.0
+ _ZN11QGrpcStatusC1EOS_@Qt_6 6.8.0
+ _ZN11QGrpcStatusC1ERKS_@Qt_6 6.8.0
+ _ZN11QGrpcStatusC2ENS_10StatusCodeERK7QString@Qt_6 6.8.0
+ _ZN11QGrpcStatusC2EOS_@Qt_6 6.8.0
+ _ZN11QGrpcStatusC2ERKS_@Qt_6 6.8.0
+ _ZN11QGrpcStatusD1Ev@Qt_6 6.8.0
+ _ZN11QGrpcStatusD2Ev@Qt_6 6.8.0
+ _ZN11QGrpcStatusaSEOS_@Qt_6 6.8.0
+ _ZN11QGrpcStatusaSERKS_@Qt_6 6.8.0
+ _ZN11QGrpcStream10updateDataERK10QByteArray@Qt_6 6.8.0
+ _ZN11QGrpcStream11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.8.0
+ _ZN11QGrpcStream11qt_metacastEPKc@Qt_6 6.8.0
+ _ZN11QGrpcStream15messageReceivedEv@Qt_6 6.8.0
+ _ZN11QGrpcStream16staticMetaObjectE@Qt_6 6.8.0
+ _ZN11QGrpcStream5abortEv@Qt_6 6.8.0
+ _ZN11QGrpcStreamC1E13QLatin1String14QByteArrayViewSt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN11QGrpcStreamC2E13QLatin1String14QByteArrayViewSt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN11QGrpcStreamD0Ev@Qt_6 6.8.0
+ _ZN11QGrpcStreamD1Ev@Qt_6 6.8.0
+ _ZN11QGrpcStreamD2Ev@Qt_6 6.8.0
+ _ZN12QGrpcChannel11startStreamE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN12QGrpcChannel4callE13QLatin1StringS0_14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN12QGrpcChannel4callE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN12QGrpcChannelC1ERK19QGrpcChannelOptionsNS_28NativeGrpcChannelCredentialsE@Qt_6 6.8.0
+ _ZN12QGrpcChannelC2ERK19QGrpcChannelOptionsNS_28NativeGrpcChannelCredentialsE@Qt_6 6.8.0
+ _ZN12QGrpcChannelD0Ev@Qt_6 6.8.0
+ _ZN12QGrpcChannelD1Ev@Qt_6 6.8.0
+ _ZN12QGrpcChannelD2Ev@Qt_6 6.8.0
+ _ZN14QGrpcCallReply11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.8.0
+ _ZN14QGrpcCallReply11qt_metacastEPKc@Qt_6 6.8.0
+ _ZN14QGrpcCallReply16staticMetaObjectE@Qt_6 6.8.0
+ _ZN14QGrpcCallReply5abortEv@Qt_6 6.8.0
+ _ZN14QGrpcCallReplyC1ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN14QGrpcCallReplyC2ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN14QGrpcCallReplyD0Ev@Qt_6 6.8.0
+ _ZN14QGrpcCallReplyD1Ev@Qt_6 6.8.0
+ _ZN14QGrpcCallReplyD2Ev@Qt_6 6.8.0
+ _ZN14QGrpcOperation11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.8.0
+ _ZN14QGrpcOperation11qt_metacastEPKc@Qt_6 6.8.0
+ _ZN14QGrpcOperation11setMetadataEOSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.8.0
+ _ZN14QGrpcOperation11setMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.8.0
+ _ZN14QGrpcOperation13errorOccurredERK11QGrpcStatus@Qt_6 6.8.0
+ _ZN14QGrpcOperation16staticMetaObjectE@Qt_6 6.8.0
+ _ZN14QGrpcOperation7setDataEO10QByteArray@Qt_6 6.8.0
+ _ZN14QGrpcOperation7setDataERK10QByteArray@Qt_6 6.8.0
+ _ZN14QGrpcOperation8finishedEv@Qt_6 6.8.0
+ _ZN14QGrpcOperationC1ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN14QGrpcOperationC2ESt10shared_ptrI27QAbstractProtobufSerializerE@Qt_6 6.8.0
+ _ZN14QGrpcOperationD0Ev@Qt_6 6.8.0
+ _ZN14QGrpcOperationD1Ev@Qt_6 6.8.0
+ _ZN14QGrpcOperationD2Ev@Qt_6 6.8.0
+ (subst)_ZN16QGrpcCallOptions12withDeadlineENSt6chrono8durationI{int64_t}St5ratioIL{int64_t}1EL{int64_t}1000EEEE@Qt_6 6.8.0
+ _ZN16QGrpcCallOptions12withMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.8.0
+ _ZN16QGrpcCallOptions20withMaxRetryAttemptsEx@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsC1ERKS_@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsC1Ev@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsC2ERKS_@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsC2Ev@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsD1Ev@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsD2Ev@Qt_6 6.8.0
+ _ZN16QGrpcCallOptionsaSERKS_@Qt_6 6.8.0
+ _ZN17QGrpcHttp2Channel11startStreamE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN17QGrpcHttp2Channel4callE13QLatin1StringS0_14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN17QGrpcHttp2Channel4callE13QLatin1StringS0_14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN17QGrpcHttp2ChannelC1ERK19QGrpcChannelOptions@Qt_6 6.8.0
+ _ZN17QGrpcHttp2ChannelC2ERK19QGrpcChannelOptions@Qt_6 6.8.0
+ _ZN17QGrpcHttp2ChannelD0Ev@Qt_6 6.8.0
+ _ZN17QGrpcHttp2ChannelD1Ev@Qt_6 6.8.0
+ _ZN17QGrpcHttp2ChannelD2Ev@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient11qt_metacallEN11QMetaObject4CallEiPPv@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient11qt_metacastEPKc@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient11startStreamE13QLatin1String14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient13attachChannelERKSt10shared_ptrI20QAbstractGrpcChannelE@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient13errorOccurredERK11QGrpcStatus@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient16staticMetaObjectE@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient26handleDeserializationErrorERKN27QAbstractProtobufSerializer20DeserializationErrorE@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient4callE13QLatin1String14QByteArrayViewR10QByteArrayRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClient4callE13QLatin1String14QByteArrayViewRK16QGrpcCallOptions@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClientC1E13QLatin1StringP7QObject@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClientC2E13QLatin1StringP7QObject@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClientD0Ev@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClientD1Ev@Qt_6 6.8.0
+ _ZN19QAbstractGrpcClientD2Ev@Qt_6 6.8.0
+ (subst)_ZN19QGrpcChannelOptions12withDeadlineENSt6chrono8durationI{int64_t}St5ratioIL{int64_t}1EL{int64_t}1000EEEE@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptions12withMetadataERKSt18unordered_multimapI10QByteArrayS1_St4hashIS1_ESt8equal_toIS1_ESaISt4pairIKS1_S1_EEE@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptions20withSslConfigurationERK17QSslConfiguration@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptions8withHostERK4QUrl@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsC1ERK4QUrl@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsC1ERKS_@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsC2ERK4QUrl@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsC2ERKS_@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsD1Ev@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsD2Ev@Qt_6 6.8.0
+ _ZN19QGrpcChannelOptionsaSERKS_@Qt_6 6.8.0
+ _ZN20QAbstractGrpcChannelC1Ev@Qt_6 6.8.0
+ _ZN20QAbstractGrpcChannelC2Ev@Qt_6 6.8.0
+ _ZN20QAbstractGrpcChannelD0Ev@Qt_6 6.8.0
+ _ZN20QAbstractGrpcChannelD1Ev@Qt_6 6.8.0
+ _ZN20QAbstractGrpcChannelD2Ev@Qt_6 6.8.0
+ _ZNK11QGrpcStatus4codeEv@Qt_6 6.8.0
+ _ZNK11QGrpcStatus7messageEv@Qt_6 6.8.0
+ _ZNK11QGrpcStream10metaObjectEv@Qt_6 6.8.0
+ _ZNK11QGrpcStream3argEv@Qt_6 6.8.0
+ _ZNK11QGrpcStream6methodEv@Qt_6 6.8.0
+ _ZNK12QGrpcChannel10serializerEv@Qt_6 6.8.0
+ _ZNK14QGrpcCallReply10metaObjectEv@Qt_6 6.8.0
+ _ZNK14QGrpcOperation10metaObjectEv@Qt_6 6.8.0
+ _ZNK14QGrpcOperation10serializerEv@Qt_6 6.8.0
+ _ZNK14QGrpcOperation4dataEv@Qt_6 6.8.0
+ _ZNK14QGrpcOperation8metadataEv@Qt_6 6.8.0
+ _ZNK16QGrpcCallOptions16maxRetryAttemptsEv@Qt_6 6.8.0
+ _ZNK16QGrpcCallOptions8deadlineEv@Qt_6 6.8.0
+ _ZNK16QGrpcCallOptions8metadataEv@Qt_6 6.8.0
+ _ZNK17QGrpcHttp2Channel10serializerEv@Qt_6 6.8.0
+ _ZNK19QAbstractGrpcClient10metaObjectEv@Qt_6 6.8.0
+ _ZNK19QAbstractGrpcClient10serializerEv@Qt_6 6.8.0
+ _ZNK19QGrpcChannelOptions16sslConfigurationEv@Qt_6 6.8.0
+ _ZNK19QGrpcChannelOptions4hostEv@Qt_6 6.8.0
+ _ZNK19QGrpcChannelOptions8deadlineEv@Qt_6 6.8.0
+ _ZNK19QGrpcChannelOptions8metadataEv@Qt_6 6.8.0
+ _ZTI11QGrpcStream@Qt_6 6.8.0
+ _ZTI12QGrpcChannel@Qt_6 6.8.0
+ _ZTI14QGrpcCallReply@Qt_6 6.8.0
+ _ZTI14QGrpcOperation@Qt_6 6.8.0
+ _ZTI17QGrpcHttp2Channel@Qt_6 6.8.0
+ _ZTI19QAbstractGrpcClient@Qt_6 6.8.0
+ _ZTI20QAbstractGrpcChannel@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTIN9__gnu_cxx7__mutexE@Qt_6 6.8.0
+ _ZTINSt13__future_base13_State_baseV2E@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTISt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTISt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTISt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTISt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ _ZTISt19_Sp_make_shared_tag@Qt_6 6.8.0
+ _ZTS11QGrpcStream@Qt_6 6.8.0
+ _ZTS12QGrpcChannel@Qt_6 6.8.0
+ _ZTS14QGrpcCallReply@Qt_6 6.8.0
+ _ZTS14QGrpcOperation@Qt_6 6.8.0
+ _ZTS17QGrpcHttp2Channel@Qt_6 6.8.0
+ _ZTS19QAbstractGrpcClient@Qt_6 6.8.0
+ _ZTS20QAbstractGrpcChannel@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSN9__gnu_cxx7__mutexE@Qt_6 6.8.0
+ _ZTSNSt13__future_base13_State_baseV2E@Qt_6 6.8.0
+ _ZTSNSt13__future_base7_ResultIvEE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt11_Mutex_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt15_Sp_counted_ptrIP11QGrpcStreamLN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt15_Sp_counted_ptrIP11QGrpcStreamLN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt15_Sp_counted_ptrIP14QGrpcCallReplyLN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt15_Sp_counted_ptrIP14QGrpcCallReplyLN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ _ZTSSt19_Sp_make_shared_tag@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt23_Sp_counted_ptr_inplaceI19QProtobufSerializerSaIvELN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt23_Sp_counted_ptr_inplaceI19QProtobufSerializerSaIvELN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ (arch=armel riscv64)_ZTSSt23_Sp_counted_ptr_inplaceIN11QMetaObject10ConnectionESaIvELN9__gnu_cxx12_Lock_policyE1EE@Qt_6 6.8.0
+ (arch=!armel !riscv64)_ZTSSt23_Sp_counted_ptr_inplaceIN11QMetaObject10ConnectionESaIvELN9__gnu_cxx12_Lock_policyE2EE@Qt_6 6.8.0
+ _ZTV11QGrpcStream@Qt_6 6.8.0
+ _ZTV12QGrpcChannel@Qt_6 6.8.0
+ _ZTV14QGrpcCallReply@Qt_6 6.8.0
+ _ZTV14QGrpcOperation@Qt_6 6.8.0
+ _ZTV17QGrpcHttp2Channel@Qt_6 6.8.0
+ _ZTV19QAbstractGrpcClient@Qt_6 6.8.0
+ _ZTV20QAbstractGrpcChannel@Qt_6 6.8.0
+ _ZZNSt19_Sp_make_shared_tag5_S_tiEvE5__tag@Qt_6 6.8.0
+ (optional=templinst)_ZZNSt9once_flag18_Prepare_executionC4IZSt9call_onceIMNSt13__future_base13_State_baseV2EFvPSt8functionIFSt10unique_ptrINS3_12_Result_baseENS7_8_DeleterEEvEEPbEJPS4_SC_SD_EEvRS_OT_DpOT0_EUlvE_EERSI_ENUlvE_4_FUNEv@Qt_6 6.8.0

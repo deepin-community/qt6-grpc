@@ -5,52 +5,68 @@
 #ifndef QGRPCOPERATION_H
 #define QGRPCOPERATION_H
 
-#include <QtCore/QObject>
 #include <QtGrpc/qgrpcstatus.h>
 #include <QtGrpc/qtgrpcglobal.h>
-#include <QtGrpc/qgrpcmetadata.h>
-#include <QtProtobuf/qabstractprotobufserializer.h>
+
+#include <QtProtobuf/qtprotobuftypes.h>
+
+#include <QtCore/qhash.h>
+#include <QtCore/qobject.h>
+#include <QtCore/qstringfwd.h>
+
+#include <optional>
 
 QT_BEGIN_NAMESPACE
 
+class QGrpcOperationContext;
 class QGrpcOperationPrivate;
+
 class Q_GRPC_EXPORT QGrpcOperation : public QObject
 {
     Q_OBJECT
-
 public:
-    template <typename T>
-    T read() const
+    ~QGrpcOperation() override;
+
+    template <typename T, QtProtobuf::if_protobuf_message<T> = true>
+    std::optional<T> read() const
     {
-        T value;
-        if (auto ser = serializer(); ser)
-            ser->deserialize(&value, data());
-        return value;
+        std::optional<T> r(std::in_place);
+        if (!read(&*r))
+            r.reset();
+        return r;
     }
+    bool read(QProtobufMessage *message) const;
 
-    void setData(const QByteArray &data);
-    void setData(QByteArray &&data);
+    [[nodiscard]] const QHash<QByteArray, QByteArray> &metadata() const & noexcept;
+    void metadata() const && = delete;
 
-    virtual void abort() = 0;
+    [[nodiscard]] QLatin1StringView method() const noexcept;
 
-    void setMetadata(const QGrpcMetadata &metadata);
-    void setMetadata(QGrpcMetadata &&metadata);
-    QGrpcMetadata metadata() const;
+    [[nodiscard]] bool isFinished() const noexcept;
+
 Q_SIGNALS:
-    void finished();
-    void errorOccurred(const QGrpcStatus &status);
+    void finished(const QGrpcStatus &status);
+
+public Q_SLOTS:
+    void cancel();
 
 protected:
-    explicit QGrpcOperation(std::shared_ptr<QAbstractProtobufSerializer> serializer);
-    ~QGrpcOperation() override;
+    explicit QGrpcOperation(std::shared_ptr<QGrpcOperationContext> operationContext,
+                            QObject *parent = nullptr);
+
+    [[nodiscard]] const QGrpcOperationContext &context() const & noexcept;
+    [[nodiscard]] QGrpcOperationContext &context() & noexcept
+    {
+        return const_cast<QGrpcOperationContext &>(std::as_const(*this).context());
+    }
+    void context() && = delete;
 
 private:
     Q_DISABLE_COPY_MOVE(QGrpcOperation)
-
-    QByteArray data() const;
-    std::shared_ptr<QAbstractProtobufSerializer> serializer() const;
-
     Q_DECLARE_PRIVATE(QGrpcOperation)
+
+public:
+    bool event(QEvent *event) override;
 };
 
 QT_END_NAMESPACE

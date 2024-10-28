@@ -15,14 +15,22 @@
 // We mean it.
 //
 
-#include <QtGrpc/private/qtgrpcglobal_p.h>
+#include <QtGrpc/qgrpcchanneloptions.h>
+
+#include <QtCore/qnamespace.h>
+#include <QtCore/qthread.h>
 
 QT_BEGIN_NAMESPACE
 
-struct QAbstractGrpcChannelPrivate
+class QAbstractGrpcChannelPrivate
 {
-    QAbstractGrpcChannelPrivate() : threadId(QThread::currentThreadId()) { }
+public:
+    explicit QAbstractGrpcChannelPrivate(const QGrpcChannelOptions &options)
+        : threadId(QThread::currentThreadId()), channelOptions(options)
+    {
+    }
     const Qt::HANDLE threadId;
+    QGrpcChannelOptions channelOptions;
 };
 
 QT_END_NAMESPACE

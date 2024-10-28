@@ -4,6 +4,10 @@
 #include "grpcclienttestbase.h"
 
 #include <QtGrpc/QGrpcChannelOptions>
+#include <QtNetwork/qtnetwork-config.h>
+#include <message_latency_defs.h>
+
+using namespace Qt::Literals::StringLiterals;
 
 void GrpcClientTestBase::initTestCase_data()
 {
@@ -12,25 +16,85 @@ void GrpcClientTestBase::initTestCase_data()
 
     if (m_channels.testFlag(Channel::Qt)) {
         QTest::newRow("Http2Client")
-                << QFlags{ Channel::Qt }
-                << std::shared_ptr<QAbstractGrpcChannel>(new QGrpcHttp2Channel(QGrpcChannelOptions{
-                           QUrl("http://localhost:50051", QUrl::StrictMode) }));
+            << QFlags{ Channel::Qt }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("http://localhost:50051",
+                                                                    QUrl::StrictMode)));
+#ifndef Q_OS_WINDOWS
+        QTest::newRow("Http2ClientUnix")
+            << QFlags{ Channel::Qt }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("unix:///tmp/qtgrpc_test.sock",
+                                                                    QUrl::StrictMode)));
+#endif
     }
 
-#if QT_CONFIG(native_grpc)
-    if (m_channels.testFlag(Channel::Native)) {
-#  ifndef Q_OS_WINDOWS
-        QTest::newRow("GrpcSocket") << QFlags{ Channel::Native }
-                                    << std::shared_ptr<QAbstractGrpcChannel>(new QGrpcChannel(
-                                               QGrpcChannelOptions{ QUrl("unix:///tmp/test.sock") },
-                                               QGrpcChannel::InsecureChannelCredentials));
-#  endif
-        QTest::newRow("GrpcHttp") << QFlags{ Channel::Native }
-                                  << std::shared_ptr<QAbstractGrpcChannel>(new QGrpcChannel(
-                                             QGrpcChannelOptions{ QUrl("localhost:50051") },
-                                             QGrpcChannel::InsecureChannelCredentials));
+#ifdef TEST_GRPC_SERVER_SUPPORTS_JSON
+    if (m_channels.testFlag(Channel::Json)) {
+        QHash<QByteArray, QByteArray> md{
+            {"content-type"_ba, "application/grpc+json"}
+        };
+        QTest::newRow("Http2ClientJson")
+            << QFlags{ Channel::Qt }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("http://localhost:50051",
+                                                                    QUrl::StrictMode),
+                                                               QGrpcChannelOptions{}
+                                                                   .setMetadata(md)));
+
+        QTest::newRow("Http2ClientJsonUnix")
+            << QFlags{ Channel::Qt }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("unix:///tmp/qtgrpc_test.sock",
+                                                                    QUrl::StrictMode),
+                                                               QGrpcChannelOptions{}
+                                                                   .setMetadata(md)));
     }
 #endif
+
+#if QT_CONFIG(ssl)
+    if (m_channels.testFlag(Channel::Ssl)) {
+        QFile caCerificateFile(":/assets/cert.pem");
+        QVERIFY2(caCerificateFile.open(QFile::ReadOnly), "Unable to open ssl ca certificate file");
+        QSslConfiguration sslConfig;
+        QSslCertificate caCert(caCerificateFile.readAll());
+        sslConfig.setProtocol(QSsl::TlsV1_2);
+        sslConfig.addCaCertificate(caCert);
+        sslConfig.setAllowedNextProtocols({ QByteArray("h2") });
+        QTest::newRow("Http2ClientSSL")
+            << QFlags{ Channel::Qt, Channel::Ssl }
+            << std::shared_ptr<QAbstractGrpcChannel>(
+                   new QGrpcHttp2Channel(QUrl("https://localhost:50052", QUrl::StrictMode),
+                                         QGrpcChannelOptions{}.setSslConfiguration(sslConfig)));
+    }
+
+    if (m_channels.testFlag(Channel::SslNoCredentials)) {
+        QSslConfiguration sslConfig;
+        sslConfig.setProtocol(QSsl::TlsV1_2);
+        sslConfig.setAllowedNextProtocols({ QByteArray("h2") });
+        QGrpcChannelOptions channelOptions;
+        channelOptions.setSslConfiguration(sslConfig);
+
+        QTest::newRow("Http2ClientSSLNoCredentials")
+            << QFlags{ Channel::Qt, Channel::SslNoCredentials }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("https://localhost:50052",
+                                                                    QUrl::StrictMode),
+                                                               channelOptions));
+    }
+#endif
+
+    if (m_channels.testFlag(Channel::WithChannelDeadline)) {
+        constexpr auto
+            channelTimeout = std::chrono::milliseconds(static_cast<int64_t>(MessageLatency * 0.25));
+        QTest::newRow("Http2ClientDeadline")
+            << QFlags{ Channel::Qt, Channel::WithChannelDeadline }
+            << std::shared_ptr<
+                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("http://localhost:50051",
+                                                                    QUrl::StrictMode),
+                                                               QGrpcChannelOptions{}
+                                                                   .setDeadlineTimeout(channelTimeout)));
+    }
 }
 
 void GrpcClientTestBase::init()

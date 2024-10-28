@@ -85,6 +85,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Grpc/Qt6GrpcDependencies.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Grpc/Qt6GrpcTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Grpc/Qt6GrpcTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Grpc/Qt6GrpcVersionlessTargets.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Grpc/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsConfig.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsConfigVersion.cmake
@@ -94,6 +95,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsMacros.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/Qt6GrpcToolsVersionlessTargets.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6GrpcTools/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufBuildInternals.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufConfig.cmake
@@ -104,6 +106,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/Qt6ProtobufVersionlessTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/QtProtobufProperties.cmake.in
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Protobuf/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesConfig.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesConfigVersion.cmake
@@ -113,6 +116,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreType
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/Qt6ProtobufQtCoreTypesVersionlessTargets.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtCoreTypes/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesConfig.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesConfigVersion.cmake
@@ -122,6 +126,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesP
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/Qt6ProtobufQtGuiTypesVersionlessTargets.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufQtGuiTypes/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsConfig.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsConfigVersion.cmake
@@ -132,6 +137,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsTargets-non
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/Qt6ProtobufToolsVersionlessTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/QtProtocCommandWrapper.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufTools/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesAdditionalTargetInfo.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesBuildInternals.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesConfig.cmake
@@ -141,6 +147,7 @@ usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKno
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesTargets-none.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/Qt6ProtobufWellKnownTypesVersionlessTargets.cmake
+usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6ProtobufWellKnownTypes/*.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/libQt6Grpc.prl
 usr/lib/${DEB_HOST_MULTIARCH}/libQt6Grpc.so
 usr/lib/${DEB_HOST_MULTIARCH}/libQt6Protobuf.prl
