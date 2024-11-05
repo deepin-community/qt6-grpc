@@ -16,6 +16,7 @@ Build-Depends: cmake (>= 3.24~),
                qt6-base-dev (>= 6.8.0+dfsg~),
                qt6-base-private-dev (>= 6.8.0+dfsg~),
                qt6-declarative-dev (>= 6.8.0~),
+	       qt6-declarative-private-dev (>= 6.8.0~),
 Build-Depends-Indep: qt6-base-dev (>= 6.8~) <!nodoc>,
                      qt6-documentation-tools (>= 6.8~) <!nodoc>,
 Standards-Version: 4.6.2
