@@ -3,9 +3,13 @@
 
 qt_internal_add_module(Protobuf
     SOURCES
+        protobuffieldpresencechecker_p.h
+        protobufscalarserializers_p.h protobufscalarserializers_p.cpp
+        protobufscalarjsonserializers_p.h
         qtprotobufglobal.h
         qabstractprotobufserializer.cpp qabstractprotobufserializer.h
-        qprotobufjsonserializer.cpp qprotobufjsonserializer.h
+        qprotobufdeserializerbase_p.h qprotobufdeserializerbase.cpp
+        qprotobufjsonserializer.cpp qprotobufjsonserializer.h qprotobufjsonserializer_p.h
         qprotobuflazymessagepointer.h
         qprotobufmessage.cpp qprotobufmessage.h qprotobufmessage_p.h
         qprotobufobject.h
@@ -20,6 +24,7 @@ qt_internal_add_module(Protobuf
         qtprotobuflogging.cpp qtprotobuflogging_p.h
         qtprotobufserializerhelpers.cpp qtprotobufserializerhelpers_p.h
         qtprotobuftypes.cpp qtprotobuftypes.h
+        qprotobufserializerbase_p.h qprotobufserializerbase.cpp
     EXTRA_CMAKE_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/QtProtobufProperties.cmake.in"
     PUBLIC_LIBRARIES
@@ -42,7 +47,8 @@ if(CMAKE_VERSION GREATER_EQUAL 3.27)
 endif()
 
 # TODO: Remove this and fix it in qtbase's qt_internal_find_tool directly
-if(QT_HOST_PATH AND Qt6::qtprotobufgen IN_LIST Qt6ProtobufTools_TARGETS
-    AND NOT QT_FORCE_BUILD_TOOLS)
-    qt_record_extra_qt_main_tools_package_dependency(Protobuf ProtobufTools "${PROJECT_VERSION}")
+if(QT_HOST_PATH AND Qt6::qtprotobufgen IN_LIST Qt6ProtobufTools_TARGETS)
+    if(NOT QT_FORCE_BUILD_TOOLS OR NOT QT_FEATURE_qtprotobufgen)
+        qt_record_extra_qt_main_tools_package_dependency(Protobuf ProtobufTools "${PROJECT_VERSION}")
+    endif()
 endif()

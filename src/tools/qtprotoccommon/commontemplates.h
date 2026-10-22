@@ -5,6 +5,7 @@
 #ifndef QTPROTOCCOMMON_TEMPLATES_H
 #define QTPROTOCCOMMON_TEMPLATES_H
 
+#include "options.h"
 #include <unordered_map>
 #include <set>
 #include <string>
@@ -19,8 +20,9 @@ public:
     static const std::set<std::string_view> &ListOfCppExceptions();
     static const char *ProtoSuffix();
     static const char *QmlProtobufIncludesTemplate();
-    static const char *PreambleTemplate();
-    static const char *FooterTemplate();
+    static const char *PragmaOnce();
+    static const char *HeaderGuardBeginTemplate();
+    static const char *HeaderGuardEndTemplate();
     static const char *DisclaimerTemplate();
     static const char *InternalIncludeTemplate();
     static const char *ExternalIncludeTemplate();
@@ -30,10 +32,9 @@ public:
     static const char *MetaTypeRegistrationMessageDefinition();
     static const char *MetaTypeRegistrationGlobalEnumDefinition();
     static const char *MetaTypeRegistrationGlobalEnumTemplate();
-    static const char *UsingMessageTemplate();
+    static const char *UsingListTemplate();
     static const char *UsingMapTemplate();
     static const char *UsingNestedMessageTemplate();
-    static const char *UsingRepeatedEnumTemplate();
     static const char *UsingEnumTemplate();
     static const char *NamespaceTemplate();
     static const char *NamespaceClosingTemplate();
@@ -43,7 +44,7 @@ public:
     static const char *ClassMessageForwardDeclarationTemplate();
     static const char *EnumForwardDeclarationTemplate();
     static const char *EnumClassForwardDeclarationTemplate();
-    static const char *ClassMessageBeginDeclarationTemplate();
+    static const char *ClassMessageBeginDeclarationTemplate(Options::FinalPolicy policy);
     static const char *Q_PROTOBUF_OBJECTMacro();
     static const char *Q_PROTOBUF_OBJECT_EXPORTMacro();
     static const char *ClassMessageQmlBeginDeclarationTemplate();
@@ -53,14 +54,15 @@ public:
 
     static const char *UseNamespace();
 
-    static const char *PropertyTemplate();
-    static const char *PropertyRepeatedTemplate();
-    static const char *PropertyRepeatedMessageTemplate();
-    static const char *PropertyMessageTemplate();
-    static const char *PropertyQmlMessageTemplate();
-    static const char *PropertyOneofTemplate();
-    static const char *PropertyOneofMessageTemplate();
-    static const char *PropertyHasFieldTemplate();
+    static const char *PropertyTemplate(Options::FinalPolicy policy);
+    static const char *PropertyRepeatedTemplate(Options::FinalPolicy policy);
+    static const char *PropertyRepeatedMessageTemplateDeprecated(Options::FinalPolicy policy);
+    static const char *PropertyRepeatedMessageTemplate(Options::FinalPolicy policy);
+    static const char *PropertyMessageTemplate(Options::FinalPolicy policy);
+    static const char *PropertyQmlMessageTemplate(Options::FinalPolicy policy);
+    static const char *PropertyOneofTemplate(Options::FinalPolicy policy);
+    static const char *PropertyOneofMessageTemplate(Options::FinalPolicy policy);
+    static const char *PropertyHasFieldTemplate(Options::FinalPolicy policy);
 
     static const char *ConstructorMessageDeclarationTemplate();
     static const char *DestructorMessageDeclarationTemplate();
@@ -85,6 +87,8 @@ public:
     static const char *AssignmentOperatorDefinitionTemplate();
     static const char *MoveAssignmentOperatorDeclarationTemplate();
     static const char *SwapDeclarationTemplate();
+    static const char *QVariantOperatorDeclarationTemplate();
+    static const char *QVariantOperatorDefinitionTemplate();
     static const char *EqualityDeclarationTemplate();
     static const char *ComparesEqualDefinitionTemplate();
     static const char *EqualOperatorMemberTemplate();
@@ -98,6 +102,8 @@ public:
     static const char *ClearMessageDefinitionTemplate();
     static const char *GetterMessageDeclarationTemplate();
     static const char *GetterMessageDefinitionTemplate();
+    static const char *GetterMessageMutableDeclarationTemplate();
+    static const char *GetterMessageMutableDefinitionTemplate();
     static const char *GetterComplexDeclarationTemplate();
     static const char *GetterComplexDefinitionTemplate();
     static const char *PrivateGetterOneofDeclarationTemplate();
@@ -163,9 +169,10 @@ public:
     static const char *QmlRegisterMessageTypeTemplate();
 
     static const char *QDateTimeExtrasTemplate();
+    static const char *DurationExtrasTemplate();
 
-    static const char *RepeatedSuffix();
     static const char *ProtoFileSuffix();
+    static const char *HeaderSuffix();
     static const char *EnumClassSuffix();
 
     static const std::unordered_map<::google::protobuf::FieldDescriptor::Type, std::string> &
@@ -181,9 +188,12 @@ public:
     static const char *QtProtobufFieldEnum();
 
     static const char *ExportMacroTemplate();
+    static const char *CustomJsonHanderTemplate();
 
     static const char *QmlNamedElement();
     static const char *MocIncludeTemplate();
+
+    static const char *MutableGetterPrefix();
 };
 
 } // namespace qtprotoccommon

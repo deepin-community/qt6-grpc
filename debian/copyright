@@ -73,10 +73,6 @@ Files: tests/auto/protobufqml/basic/qml/tst_basic.qml
 Copyright: 2023 The Qt Company Ltd.
 License: GPL-3 with Qt-1.0 exception
 
-Files: tests/manual/protobuf/conformance/tst_protobuf_conformance.cpp
-Copyright: 2023 The Qt Company Ltd.
-License: LGPL-3 or GPL-2
-
 Files: */CMakeLists.txt
        *.cmake
 Copyright: 2022, 2023 The Qt Company Ltd.
@@ -88,7 +84,7 @@ License: GFDL-NIV-1.3
 
 Files: debian/*
 Copyright: 2023 Tianyu Chen <sweetyfish@deepin.org>
-           2023 Patrick Franz <deltaone@debian.org>
+           2023-2025 Patrick Franz <deltaone@debian.org>
 License: LGPL-3 or GPL-2
 
 License: BSD-3-Clause

@@ -20,6 +20,11 @@ class Options
 
     static Options &mutableInstance();
 public:
+    enum class FinalPolicy : bool { Final, NonFinal };
+    enum class HeaderGuardType {
+        Pragma,
+        ProtoFilename,
+    };
     enum GeneratorType {
         QtProtobufGen = 0,
         QtGrpcGen
@@ -31,7 +36,7 @@ public:
     Options &operator=(Options &&) = delete;
 
     static const Options &instance();
-    static void setFromString(const std::string &options, GeneratorType type = QtProtobufGen);
+    static void setFromString(const std::string &options, GeneratorType type, std::string *error);
 
     bool hasQml() const { return m_qml; }
     bool generateComments() const { return m_generateComments; }
@@ -41,6 +46,10 @@ public:
     const std::string &exportMacro() const { return m_exportMacro; }
     const std::string &exportMacroFilename() const { return m_exportMacroFilename; }
     bool generateMacroExportFile() const { return m_generateMacroExportFile; }
+    HeaderGuardType headerGuard() const { return m_headerGuard; }
+    bool mutableGetterConflicts() const { return m_mutableGetterConflicts; }
+    FinalPolicy messageGenerationType() const { return m_messageGenerationType; }
+    FinalPolicy propertyGenerationType() const { return m_propertyGenerationType; }
 
 private:
     bool m_generateComments;
@@ -51,6 +60,10 @@ private:
     std::string m_exportMacroFilename;
     bool m_generateMacroExportFile;
     bool m_qml;
+    bool m_mutableGetterConflicts;
+    FinalPolicy m_messageGenerationType = Options::FinalPolicy::Final;
+    FinalPolicy m_propertyGenerationType = Options::FinalPolicy::Final;
+    HeaderGuardType m_headerGuard = Options::HeaderGuardType::ProtoFilename;
 };
 
 }

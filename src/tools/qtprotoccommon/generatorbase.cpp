@@ -1,6 +1,7 @@
 // Copyright (C) 2022 The Qt Company Ltd.
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// Qt-Security score:critical reason:data-parser
 
 #include "generatorbase.h"
 
@@ -28,7 +29,9 @@ bool GeneratorBase::GenerateAll(const std::vector<const FileDescriptor *> &files
     assert(!files.empty());
     assert(generatorContext != nullptr);
 
-    Options::setFromString(parameter);
+    Options::setFromString(parameter, Options::QtProtobufGen, error);
+    if (!error->empty())
+        return false;
     if (Options::instance().generateMacroExportFile()) {
         std::string exportMacroName = Options::instance().exportMacro();
         std::string exportMacroFilename = Options::instance().exportMacroFilename();
@@ -48,7 +51,7 @@ bool GeneratorBase::GenerateAll(const std::vector<const FileDescriptor *> &files
         std::set<std::string> extraNamespaceFiles;
         for (const FileDescriptor *file : files) {
             assert(file != nullptr);
-            extraNamespaceFiles.insert(file->name());
+            extraNamespaceFiles.insert(std::string{ file->name() });
         }
         common::setExtraNamespacedFiles(extraNamespaceFiles);
     }
@@ -68,8 +71,9 @@ void GeneratorBase::OpenFileNamespaces(
     assert(file != nullptr);
     const bool hasQtNamespace = (Options::instance().extraNamespace() == "QT_NAMESPACE");
 
-    const std::string scopeNamespaces
-        = common::getFullNamespace(file->package() + ".noop", "::", true);
+    const std::string scopeNamespaces = common::getFullNamespace(std::string{ file->package() }
+                                                                     + ".noop",
+                                                                 "::", true);
 
     printer->Print("\n");
     if (hasQtNamespace || file->package() == "QtCore" || file->package() == "QtGui")
@@ -87,8 +91,9 @@ void GeneratorBase::CloseFileNamespaces(
     assert(printer != nullptr);
     const bool hasQtNamespace = (Options::instance().extraNamespace() == "QT_NAMESPACE");
 
-    const std::string scopeNamespaces
-        = common::getFullNamespace(file->package() + ".noop", "::", true);
+    const std::string scopeNamespaces = common::getFullNamespace(std::string{ file->package() }
+                                                                     + ".noop",
+                                                                 "::", true);
     if (!scopeNamespaces.empty()) {
         printer->Print({ { "scope_namespaces", scopeNamespaces } },
                        CommonTemplates::NamespaceClosingTemplate());
@@ -126,4 +131,25 @@ void GeneratorBase::printIncludes(google::protobuf::io::Printer *printer,
         printer->Print("\n");
     for (const auto &header : system)
         printer->Print({ {"include", header } }, CommonTemplates::ExternalIncludeTemplate());
+}
+
+void GeneratorBase::printHeaderGuardBegin(google::protobuf::io::Printer *printer,
+                                          const std::string &guard)
+{
+    switch (Options::instance().headerGuard()) {
+    case Options::HeaderGuardType::Pragma:
+        printer->Print(CommonTemplates::PragmaOnce());
+        break;
+    default:
+        printer->Print({ { "header_guard", guard } }, CommonTemplates::HeaderGuardBeginTemplate());
+        break;
+    }
+}
+
+void GeneratorBase::printHeaderGuardEnd(google::protobuf::io::Printer *printer,
+                                        const std::string &guard)
+{
+    if (Options::instance().headerGuard() == Options::HeaderGuardType::Pragma)
+        return;
+    printer->Print({ { "header_guard", guard } }, CommonTemplates::HeaderGuardEndTemplate());
 }

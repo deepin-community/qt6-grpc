@@ -1,6 +1,7 @@
 // Copyright (C) 2022 The Qt Company Ltd.
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// Qt-Security score:critical reason:data-parser
 
 #include "qprotobufgenerator.h"
 #include "enumdeclarationprinter.h"
@@ -13,6 +14,7 @@
 #include "options.h"
 
 #include <cassert>
+#include <sstream>
 #include <unordered_set>
 
 #include <google/protobuf/stubs/common.h>
@@ -33,26 +35,26 @@ QProtobufGenerator::~QProtobufGenerator() = default;
 
 bool QProtobufGenerator::Generate(const FileDescriptor *file,
                                   [[maybe_unused]] const std::string &parameter,
-                                  GeneratorContext *generatorContext,
-                                  [[maybe_unused]] std::string *error) const
+                                  GeneratorContext *generatorContext, std::string *error) const
 {
     assert(file != nullptr);
     assert(generatorContext != nullptr);
-    return GenerateMessages(file, generatorContext);
+    return GenerateMessages(file, generatorContext, error);
 }
 
 void QProtobufGenerator::GenerateSources(const FileDescriptor *file,
-                                         GeneratorContext *generatorContext) const
+                                         GeneratorContext *generatorContext, std::string *) const
 {
     assert(file != nullptr);
     assert(generatorContext != nullptr);
 
     std::string basename = utils::extractFileBasename(file->name());
+    std::string identifier = utils::toValidIdentifier(basename);
     std::string relativePath = common::generateRelativeFilePath(file, basename);
     std::unique_ptr<io::ZeroCopyOutputStream> sourceStream(
                 generatorContext->Open(relativePath + CommonTemplates::ProtoFileSuffix() + ".cpp"));
     std::unique_ptr<io::ZeroCopyOutputStream> registrationStream(
-                generatorContext->Open(relativePath + "_protobuftyperegistrations.cpp"));
+                generatorContext->Open(relativePath + "_qtprotoreg.cpp"));
 
     std::shared_ptr<Printer> sourcePrinter(new Printer(sourceStream.get(), '$'));
     std::shared_ptr<Printer> registrationPrinter(new Printer(registrationStream.get(), '$'));
@@ -60,19 +62,22 @@ void QProtobufGenerator::GenerateSources(const FileDescriptor *file,
     printDisclaimer(sourcePrinter.get());
 
     utils::ExternalIncludesOrderedSet externalIncludes{ "QtProtobuf/qprotobufregistration.h" };
-    std::set<std::string> internalIncludes{ relativePath + CommonTemplates::ProtoFileSuffix() };
+    std::set<std::string> internalIncludes{ relativePath + CommonTemplates::ProtoFileSuffix()
+                                            + CommonTemplates::HeaderSuffix() };
 
     printIncludes(registrationPrinter.get(), internalIncludes, externalIncludes, {});
 
-    bool generateWellknownTimestamp = false;
     common::iterateMessages(file, [&](const Descriptor *message) {
         if (message->full_name() == "google.protobuf.Timestamp") {
-            generateWellknownTimestamp = true;
-            return;
+            externalIncludes.insert("QtCore/QTimeZone");
+            externalIncludes.insert("QtProtobufWellKnownTypes/private/"
+                                    "qprotobufwellknowntypesjsonserializers_p.h");
+        } else if (common::hasCustomJsonCoversion(message)) {
+            externalIncludes.insert("QtProtobufWellKnownTypes/private/"
+                                    "qprotobufwellknowntypesjsonserializers_p.h");
         }
     });
-    if (generateWellknownTimestamp)
-        externalIncludes.insert("QtCore/QTimeZone");
+
     printIncludes(sourcePrinter.get(), internalIncludes, externalIncludes, { "cmath" });
 
     OpenFileNamespaces(file, sourcePrinter.get());
@@ -91,7 +96,7 @@ void QProtobufGenerator::GenerateSources(const FileDescriptor *file,
         messageDef.printClassRegistration(registrationPrinter.get());
     });
 
-    registrationPrinter->Print({{"proto_name", utils::capitalizeAsciiName(basename)}},
+    registrationPrinter->Print({{"proto_name", utils::capitalizeAsciiName(identifier)}},
                                CommonTemplates::ProtobufTypeRegistrarTemplate());
 
     CloseFileNamespaces(file, registrationPrinter.get());
@@ -105,17 +110,20 @@ void QProtobufGenerator::GenerateSources(const FileDescriptor *file,
 }
 
 void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
-                                        GeneratorContext *generatorContext) const
+                                        GeneratorContext *generatorContext,
+                                        std::string *error) const
 {
     assert(file != nullptr);
     assert(generatorContext != nullptr);
+    assert(error != nullptr);
 
     const std::string basename = utils::extractFileBasename(file->name()) +
         CommonTemplates::ProtoFileSuffix();
+    std::string identifier = utils::toValidIdentifier(basename);
     std::string relativePath = common::generateRelativeFilePath(file, basename);
 
-    std::unique_ptr<io::ZeroCopyOutputStream> headerStream(generatorContext->Open(relativePath
-                                                                                  + ".h"));
+    std::unique_ptr<io::ZeroCopyOutputStream>
+        headerStream(generatorContext->Open(relativePath + CommonTemplates::HeaderSuffix()));
     std::shared_ptr<Printer> headerPrinter(new Printer(headerStream.get(), '$'));
 
     printDisclaimer(headerPrinter.get());
@@ -124,11 +132,12 @@ void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
     utils::ExternalIncludesOrderedSet externalIncludes;
     std::set<std::string> systemIncludes;
 
-    const std::string headerGuard = common::headerGuardFromFilename(basename + ".h");
-    headerPrinter->Print({{"header_guard", headerGuard}}, CommonTemplates::PreambleTemplate());
+    const std::string
+        headerGuard = common::headerGuardFromFilename(identifier + CommonTemplates::HeaderSuffix());
+    QProtobufGenerator::printHeaderGuardBegin(headerPrinter.get(), headerGuard);
     if (!Options::instance().exportMacroFilename().empty()) {
         std::string exportMacroFilename = Options::instance().exportMacroFilename();
-        internalIncludes.insert(utils::removeFileSuffix(exportMacroFilename));
+        internalIncludes.insert(exportMacroFilename);
     }
 
     externalIncludes.insert("QtCore/qbytearray.h");
@@ -147,39 +156,83 @@ void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
         externalIncludes.insert("QtQml/qqmllist.h");
     }
 
-    bool hasOneofFields = false;
-    bool hasOptionalFields = false;
     std::unordered_set<std::string> qtTypesSet;
-    common::iterateMessages(
-            file, [&](const Descriptor *message) {
-                if (message->oneof_decl_count() > 0)
-                    hasOneofFields = true;
 
-                if (message->full_name() == "google.protobuf.Timestamp") {
-                    externalIncludes.insert("QtCore/QDateTime");
-                }
-                if (message->full_name() == "google.protobuf.Any")
-                    externalIncludes.insert("QtProtobufWellKnownTypes/qprotobufanysupport.h");
+    std::string mutFieldsClashError;
+    const auto specialMessageHandling = [&](const Descriptor *message) {
+        if (message->oneof_decl_count() > 0)
+            externalIncludes.insert("QtProtobuf/qprotobufoneof.h");
 
-                for (int i = 0; i < message->field_count(); ++i) {
-                    const auto *field = message->field(i);
-                    if (field->type() == FieldDescriptor::TYPE_MESSAGE && !field->is_map()
-                        && !field->is_repeated() && common::isQtType(field)) {
-                        externalIncludes.insert(field->message_type()->file()->package()
-                                                + "/" + field->message_type()->name());
-                        qtTypesSet.insert(field->message_type()->file()->package());
+        if (message->full_name() == "google.protobuf.Timestamp")
+            externalIncludes.insert("QtCore/QDateTime");
+
+        if (message->full_name() == "google.protobuf.Any")
+            externalIncludes.insert("QtProtobufWellKnownTypes/qprotobufanysupport.h");
+
+        // We collect the 'mut'-prefixed names of either message fields or
+        // the respective mutable getters that will be generated. The name
+        // strings are scoped in lambda and we cannot hold any kind of
+        // references so store the copy.
+        std::unordered_set<std::string> mutPrefixedNames;
+        common::iterateMessageFields(
+            message, [&](const FieldDescriptor *field, const PropertyMap &propertyMap) {
+                if (common::isPureMessage(field)) {
+                    const auto getterNameIt = propertyMap.find("mutable_getter_name");
+                    assert(getterNameIt != propertyMap.end());
+
+                    const auto propertyNameIt = propertyMap.find("property_name");
+                    assert(propertyNameIt != propertyMap.end());
+
+                    // Ensure mut prefix doesn't lead to the name clashing
+                    if (mutPrefixedNames.find(getterNameIt->second) != mutPrefixedNames.end()
+                        || mutPrefixedNames.find(propertyNameIt->second)
+                            != mutPrefixedNames.end()) {
+                        std::ostringstream e;
+                        e << "Message '" << message->full_name() << "': ";
+                        e << "Field '" << field->name() << "' causes a naming conflict";
+                        e << "with a mutable getter. This may lead to unintended behavior.";
+                        e << "Consider reviewing the guidelines for handling mutable getters: ";
+                        e << "https://doc.qt.io/qt-6/qtprotobuf-mutable-getters.html\n";
+                        mutFieldsClashError = e.str();
                     }
+                    mutPrefixedNames.insert(getterNameIt->second);
 
-                    if (common::isOptionalField(field))
-                        hasOptionalFields = true;
+                    // We only care about field names that potentially clash.
+                    if (utils::startsWith(propertyNameIt->second,
+                                          CommonTemplates::MutableGetterPrefix()))
+                        mutPrefixedNames.insert(propertyNameIt->second);
                 }
+
+                // Collect the special includes
+                if (field->type() == FieldDescriptor::TYPE_MESSAGE && !field->is_map()
+                    && !field->is_repeated() && common::isQtType(field)) {
+                    const std::string package{ field->message_type()->file()->package() };
+                    externalIncludes.insert(package + "/"
+                                            + std::string{ field->message_type()->name() });
+                    qtTypesSet.insert(package);
+                }
+
+                if (common::isOptionalField(field))
+                    systemIncludes.insert("optional");
             });
+    };
 
-    if (hasOneofFields)
-        externalIncludes.insert("QtProtobuf/qprotobufoneof.h");
+    common::iterateMessages(file, [&specialMessageHandling](const Descriptor *message) {
+        specialMessageHandling(message);
+        common::iterateNestedMessages(message,
+                                      [&specialMessageHandling](const Descriptor *message) {
+                                          specialMessageHandling(message);
+                                      });
+    });
 
-    if (hasOptionalFields)
-        systemIncludes.insert("optional");
+    if (!mutFieldsClashError.empty()) {
+        if (Options::instance().mutableGetterConflicts()) {
+            std::clog << mutFieldsClashError << std::endl;
+        } else {
+            *error += mutFieldsClashError;
+            return;
+        }
+    }
 
     for (const auto &qtTypeInclude: qtTypesSet) {
         std::string qtTypeLower = qtTypeInclude;
@@ -200,7 +253,8 @@ void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
             continue;
         }
         internalIncludes.insert(utils::removeFileSuffix(file->dependency(i)->name())
-                                + CommonTemplates::ProtoFileSuffix());
+                                + CommonTemplates::ProtoFileSuffix()
+                                + CommonTemplates::HeaderSuffix());
     }
 
     printIncludes(headerPrinter.get(), internalIncludes, externalIncludes, systemIncludes);
@@ -217,6 +271,13 @@ void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
         messageDecl.printClassForwardDeclaration();
     });
 
+    headerPrinter->Print("#ifdef QT_USE_PROTOBUF_LIST_ALIASES\n");
+    common::iterateMessages(file, [&headerPrinter](const Descriptor *message) {
+        headerPrinter->Print(common::produceMessageTypeMap(message, nullptr),
+                             CommonTemplates::UsingListTemplate());
+    });
+    headerPrinter->Print("#endif // QT_USE_PROTOBUF_LIST_ALIASES\n");
+
     common::iterateMessages(
                 file,
                 [&headerPrinter](const Descriptor *message) {
@@ -230,19 +291,24 @@ void QProtobufGenerator::GenerateHeader(const FileDescriptor *file,
         MessageDeclarationPrinter messageDef(message, headerPrinter);
     });
 
-    headerPrinter->Print({{"header_guard", headerGuard}}, CommonTemplates::FooterTemplate());
+    QProtobufGenerator::printHeaderGuardEnd(headerPrinter.get(), headerGuard);
 }
 
 bool QProtobufGenerator::GenerateMessages(const FileDescriptor *file,
-                                          GeneratorContext *generatorContext) const
+                                          GeneratorContext *generatorContext,
+                                          std::string *error) const
 {
     assert(file != nullptr);
     assert(generatorContext != nullptr);
+    assert(error != nullptr);
 
     if (file->message_type_count() <= 0 && file->enum_type_count() <= 0)
         return true;
 
-    GenerateHeader(file, generatorContext);
-    GenerateSources(file, generatorContext);
+    GenerateHeader(file, generatorContext, error);
+    if (!error->empty())
+        return false;
+
+    GenerateSources(file, generatorContext, error);
     return true;
 }

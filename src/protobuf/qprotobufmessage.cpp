@@ -23,6 +23,40 @@ static std::string nullTerminate(QLatin1StringView l1) noexcept
 }
 
 /*!
+    \since 6.11
+    \fn template <class To> To qprotobufmessage_cast(QProtobufMessage *from)
+    \fn template <class To> To qprotobufmessage_cast(const QProtobufMessage *from)
+    \relates QProtobufMessage
+
+    Returns the given \a from object cast to pointer type \c To if the object is
+    of type \c To (or a subclass); otherwise returns \nullptr. If \a from is
+    \nullptr, this function also returns \nullptr.
+
+    The template argument \c To must be a pointer to a class that inherits from
+    QProtobufMessage and is declared with the \l Q_PROTOBUF_OBJECT macro.
+
+    Example:
+    \code
+    QProtobufMessage *message = new myproject::MySpecificMessage();
+
+    // Cast to its own type (success)
+    auto *specific = qprotobufmessage_cast<myproject::MySpecificMessage *>(message);
+    // specific is a valid pointer
+
+    // Cast to an unrelated type (failure)
+    auto *another = qprotobufmessage_cast<myproject::AnotherMessage *>(message);
+    // another is nullptr
+    \endcode
+
+    This function behaves similarly to the standard C++ \c dynamic_cast(), with
+    the advantages that it doesn't require RTTI support and works across
+    dynamic library boundaries.
+
+    \warning If the type pointed to by \c To is not declared with the
+    Q_PROTOBUF_OBJECT macro, this function's return value is undefined.
+*/
+
+/*!
     \class QProtobufMessage
     \inmodule QtProtobuf
 
@@ -111,10 +145,10 @@ QProtobufMessagePrivate::metaProperty(QtProtobufPrivate::QProtobufFieldInfo info
 /*!
     Set the property \a propertyName to the value stored in \a value.
 
-    If the \a propertyName isn't a part of the known fields then the value will
-    not be written and the function returns \c false.
+    If the \a propertyName isn't a known fields, then the value is ignored, and
+    the function returns \c false.
 
-    Returns \c false if it failed to store the \a value on the property.
+    Returns \c false if it fails to store the \a value on the property.
     Otherwise \c{true}.
 */
 bool QProtobufMessage::setProperty(QAnyStringView propertyName, const QVariant &value)
@@ -194,6 +228,20 @@ bool comparesEqual(const QProtobufMessage &lhs, const QProtobufMessage &rhs) noe
     return lhs.d_func()->unknownEntries == rhs.d_func()->unknownEntries;
 }
 
+/*!
+    \internal
+    \since 6.11
+    Returns a pointer to the meta-object for this message instance. The
+    meta-object provides run-time type information for dynamic operations.
+
+    \sa qprotobufmessage_cast()
+*/
+const QMetaObject *QProtobufMessage::metaObject() const
+{
+    Q_D(const QProtobufMessage);
+    return d->metaObject;
+}
+
 namespace QtProtobufPrivate {
 /*!
     \internal
@@ -205,10 +253,10 @@ extern QProtobufMessagePointer constructMessageByName(const QString &messageType
     Constructs QProtobufMessage using \a messageType.
     Returns a pointer to the constructed QProtobufMessage.
 
-    This function attempts to create a message whose type matches \a messageType. If \a messageType
-    is unknown, the function returns \nullptr. If the message is not found in the registry, the
-    function returns \nullptr.
-    Ownership of the constructed message is given to the function caller.
+    This function attempts to create a message with a type that matches \a messageType.
+    If \a messageType is unknown, the function returns \nullptr. If the message
+    is not found in the registry, the function returns \nullptr.
+    The function caller is given ownership of the constructed message.
 */
 QProtobufMessagePointer QProtobufMessage::constructByName(const QString &messageType)
 {
@@ -231,8 +279,7 @@ QProtobufMessagePointer QProtobufMessage::constructByName(const QString &message
     \brief Calls the destructor of the child class of a QProtobufMessage.
 
     This class calls the destructor of a protobuf message using the meta-type
-    system. This class is intended to be used with smart pointers, such as
-    std::unique_ptr.
+    system. It is intended to be used with smart pointers, such as std::unique_ptr.
 
     \sa QProtobufMessagePointer
 */

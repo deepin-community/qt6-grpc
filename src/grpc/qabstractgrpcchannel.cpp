@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 #include <QtGrpc/private/qabstractgrpcchannel_p.h>
-#include <QtGrpc/qabstractgrpcchannel.h>
 #include <QtGrpc/qgrpccalloptions.h>
 #include <QtGrpc/qgrpccallreply.h>
 #include <QtGrpc/qgrpcoperationcontext.h>
@@ -17,103 +16,114 @@ QT_BEGIN_NAMESPACE
 /*!
     \class QAbstractGrpcChannel
     \inmodule QtGrpc
-    \brief The QAbstractGrpcChannel class is an interface that represents common
-    gRPC channel functionality.
+    \brief The QAbstractGrpcChannel class provides an interface for
+    implementing the transport layer of \gRPC operations.
 
-    Implement this interface to create your own custom channel for gRPC
-    transportation. We provide the QGrpcHttp2Channel, which is a fully featured
-    implementation of the QAbstractGrpcChannel for HTTP/2 communication.
+    Implement this interface to create a custom channel for \gRPC
+    transportation. The QGrpcHttp2Channel class is provided as a fully featured
+    implementation of QAbstractGrpcChannel for HTTP/2 communication.
+
+    \sa QGrpcChannelOptions, QGrpcHttp2Channel
 */
 
 /*!
     \fn virtual std::shared_ptr<QAbstractProtobufSerializer> QAbstractGrpcChannel::serializer() const = 0
 
-    This pure virtual function shall return a shared pointer
-    to QAbstractProtobufSerializer.
-
-    This function is called to obtain the QAbstractProtobufSerializer used
-    to perform serialization and deserialization of the message.
+    This pure virtual function retrieves the QAbstractProtobufSerializer used
+    for the serialization and deserialization of messages.
 */
 
 /*!
-    \fn virtual void QAbstractGrpcChannel::call(std::shared_ptr<QGrpcOperationContext> operationContext) = 0
+    \fn virtual void QAbstractGrpcChannel::call(QGrpcOperationContext *operationContext, QByteArray &&messageData) = 0
     \since 6.7
 
-    This pure virtual function is called by public QAbstractGrpcChannel::call
-    method when making unary gRPC call. The \a operationContext is the
-    pointer to a channel side \l QGrpcOperationContext primitive that is
-    connected with \l QGrpcCallReply primitive, that is used in
-    \l QGrpcClientBase implementations.
+//! [abstract-rpc-desc]
+    This pure virtual function is called when a user starts a new RPC through
+    the generated client interface. The \a operationContext should be used to
+    communicate with the corresponding RPC handler, which is a derived type of
+    the QGrpcOperation object.
 
-    The function should implement the channel-side logic of unary call. The
-    implementation must be asynchronous and must not block the thread where
-    the function was called.
+    This function should start the corresponding RPC on the channel side with
+    the serialized \a messageData. The implementation must be asynchronous and
+    must not block the calling thread.
+
+    \note It is the channel's responsibility to support and restrict the subset
+    of features that its RPC type allows.
+//! [abstract-rpc-desc]
 */
 
 /*!
-    \fn virtual void QAbstractGrpcChannel::serverStream(std::shared_ptr<QGrpcOperationContext> operationContext) = 0
+    \fn virtual void QAbstractGrpcChannel::serverStream(QGrpcOperationContext *operationContext, QByteArray &&messageData) = 0
     \since 6.7
 
-    This pure virtual function that the starts of the server-side stream. The
-    \a operationContext is the pointer to a channel side
-    \l QGrpcOperationContext primitive that is connected with \l QGrpcServerStream
-    primitive, that is used in \l QGrpcClientBase implementations.
-
-    The function should implement the channel-side logic of server-side stream.
-    The implementation must be asynchronous and must not block the thread where
-    the function was called.
+    \include qabstractgrpcchannel.cpp abstract-rpc-desc
 */
 
 /*!
-    \fn virtual void QAbstractGrpcChannel::clientStream(std::shared_ptr<QGrpcOperationContext> operationContext) = 0
+    \fn virtual void QAbstractGrpcChannel::clientStream(QGrpcOperationContext *operationContext, QByteArray &&messageData) = 0
     \since 6.7
 
-    This pure virtual function that the starts of the client-side stream. The
-    \a operationContext is the pointer to a channel side
-    \l QGrpcOperationContext primitive that is connected with
-    \l QGrpcClientStream primitive, that is used in \l QGrpcClientBase.
-
-    The function should implement the channel-side logic of client-side stream.
-    The implementation must be asynchronous and must not block the thread where
-    the function was called.
+    \include qabstractgrpcchannel.cpp abstract-rpc-desc
 */
 
 /*!
-    \fn virtual void QAbstractGrpcChannel::bidiStream(std::shared_ptr<QGrpcOperationContext> operationContext) = 0
+    \fn virtual void QAbstractGrpcChannel::bidiStream(QGrpcOperationContext *operationContext, QByteArray &&messageData) = 0
     \since 6.7
 
-    This pure virtual function that the starts of the bidirectional stream. The
-    \a operationContext is the pointer to a channel side
-    \l QGrpcOperationContext primitive that is connected with
-    \l QGrpcBidiStream primitive, that is used in \l QGrpcClientBase.
-
-    The function should implement the channel-side logic of bidirectional
-    stream. The implementation must be asynchronous and must not block the
-    thread where the function was called.
+    \include qabstractgrpcchannel.cpp abstract-rpc-desc
 */
 
+/*!
+    Default-constructs the QAbstractGrpcChannel.
+*/
 QAbstractGrpcChannel::QAbstractGrpcChannel()
-    : d_ptr(std::make_unique<QAbstractGrpcChannelPrivate>(QGrpcChannelOptions{}))
+    : d_ptr(std::make_unique<QAbstractGrpcChannelPrivate>(QGrpcChannelOptions{}, this))
 {
 }
 
 /*!
     \since 6.8
-    Constructs QAbstractGrpcChannel using the private message implementation
-    from the derived class.
+    \internal
+
+    Constructs the QAbstractGrpcChannel using the Private implementation to
+    reuse the d_ptr.
 */
 QAbstractGrpcChannel::QAbstractGrpcChannel(QAbstractGrpcChannelPrivate &dd) : d_ptr(&dd)
 {
 }
 
+/*!
+    Constructs the QAbstractGrpcChannel using the specified \a options.
+*/
 QAbstractGrpcChannel::QAbstractGrpcChannel(const QGrpcChannelOptions &options)
-    : d_ptr(std::make_unique<QAbstractGrpcChannelPrivate>(options))
+    : d_ptr(std::make_unique<QAbstractGrpcChannelPrivate>(options, this))
 {
 }
+
+QAbstractGrpcChannel::QAbstractGrpcChannel(QGrpcInterceptorChain interceptorChain)
+    : QAbstractGrpcChannel()
+{
+    Q_D(QAbstractGrpcChannel);
+    d->interceptorEngine.setInterceptorChain(std::move(interceptorChain));
+}
+
+QAbstractGrpcChannel::QAbstractGrpcChannel(const QGrpcChannelOptions &options,
+                                           QGrpcInterceptorChain interceptorChain)
+    : QAbstractGrpcChannel(options)
+{
+    Q_D(QAbstractGrpcChannel);
+    d->interceptorEngine.setInterceptorChain(std::move(interceptorChain));
+}
+
+/*!
+    Destroys the QAbstractGrpcChannel.
+*/
 QAbstractGrpcChannel::~QAbstractGrpcChannel() = default;
 
 /*!
-    Returns QGrpcChannelOptions used by the channel.
+    Returns the options utilized by the channel.
+
+    \sa setChannelOptions
 */
 const QGrpcChannelOptions &QAbstractGrpcChannel::channelOptions() const & noexcept
 {
@@ -145,114 +155,10 @@ void QAbstractGrpcChannel::setChannelOptions(QGrpcChannelOptions &&options)
     d->channelOptions = std::move(options);
 }
 
-/*!
-    \internal
-    Function constructs \l QGrpcCallReply and \l QGrpcOperationContext
-    primitives and makes the required for unary gRPC call connections
-    between them.
-
-    The function should not be called directly, but only by
-    \l QGrpcClientBase implementations.
-*/
-std::unique_ptr<QGrpcCallReply> QAbstractGrpcChannel::call(QLatin1StringView method,
-                                                           QLatin1StringView service,
-                                                           QByteArrayView arg,
-                                                           const QGrpcCallOptions &options)
+const QGrpcInterceptorChain &QAbstractGrpcChannel::interceptorChain() const & noexcept
 {
-    auto operationContext = std::make_shared<
-        QGrpcOperationContext>(method, service, arg, options, serializer(),
-                               QGrpcOperationContext::PrivateConstructor());
-
-    QObject::connect(operationContext.get(), &QGrpcOperationContext::writeMessageRequested,
-                     operationContext.get(), []() {
-                         Q_ASSERT_X(false, "QAbstractGrpcChannel::call",
-                                    "QAbstractGrpcChannel::call disallows the "
-                                    "'writeMessageRequested' signal from "
-                                    "QGrpcOperationContext");
-                     });
-
-    auto reply = std::make_unique<QGrpcCallReply>(operationContext);
-    call(operationContext);
-
-    return reply;
-}
-
-/*!
-    \internal
-    Function constructs \l QGrpcServerStream and \l QGrpcOperationContext
-    primitives and makes the required for server-side gRPC stream connections
-    between them.
-
-    The function should not be called directly, but only by
-    \l QGrpcClientBase implementations.
-*/
-std::unique_ptr<QGrpcServerStream>
-QAbstractGrpcChannel::serverStream(QLatin1StringView method, QLatin1StringView service,
-                                   QByteArrayView arg, const QGrpcCallOptions &options)
-{
-    auto operationContext = std::make_shared<
-        QGrpcOperationContext>(method, service, arg, options, serializer(),
-                               QGrpcOperationContext::PrivateConstructor());
-
-    QObject::connect(operationContext.get(), &QGrpcOperationContext::writeMessageRequested,
-                     operationContext.get(), []() {
-                         Q_ASSERT_X(false, "QAbstractGrpcChannel::serverStream",
-                                    "QAbstractGrpcChannel::serverStream disallows "
-                                    "the 'writeMessageRequested' signal from "
-                                    "QGrpcOperationContext");
-                     });
-
-    auto stream = std::make_unique<QGrpcServerStream>(operationContext);
-    serverStream(operationContext);
-
-    return stream;
-}
-
-/*!
-    \internal
-    Function constructs \l QGrpcClientStream and \l QGrpcOperationContext
-    primitives and makes the required for client-side gRPC stream connections
-    between them.
-
-    The function should not be called directly, but only by
-    \l QGrpcClientBase.
-*/
-std::unique_ptr<QGrpcClientStream>
-QAbstractGrpcChannel::clientStream(QLatin1StringView method, QLatin1StringView service,
-                                   QByteArrayView arg, const QGrpcCallOptions &options)
-{
-    auto operationContext = std::make_shared<
-        QGrpcOperationContext>(method, service, arg, options, serializer(),
-                               QGrpcOperationContext::PrivateConstructor());
-
-    auto stream = std::make_unique<QGrpcClientStream>(operationContext);
-    clientStream(operationContext);
-
-    return stream;
-}
-
-/*!
-    \internal
-    Function constructs \l QGrpcBidiStream and \l QGrpcOperationContext
-    primitives and makes the required for bidirectional gRPC stream connections
-    between them.
-
-    The function should not be called directly, but only by
-    \l QGrpcClientBase.
-*/
-std::unique_ptr<QGrpcBidiStream> QAbstractGrpcChannel::bidiStream(QLatin1StringView method,
-                                                                  QLatin1StringView service,
-                                                                  QByteArrayView arg,
-                                                                  const QGrpcCallOptions &options)
-{
-    auto operationContext = std::make_shared<
-        QGrpcOperationContext>(method, service, arg, options, serializer(),
-                               QGrpcOperationContext::PrivateConstructor());
-
-    auto stream = std::make_unique<QGrpcBidiStream>(operationContext);
-    bidiStream(operationContext);
-
-    return stream;
+    Q_D(const QAbstractGrpcChannel);
+    return d->interceptorEngine.interceptorChain();
 }
 
 QT_END_NAMESPACE

@@ -1,5 +1,6 @@
 // Copyright (C) 2024 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+// Qt-Security score:critical reason:data-parser
 
 #include <QtProtobuf/qprotobufpropertyordering.h>
 
@@ -8,9 +9,9 @@
 #include <QtProtobuf/private/qtprotobuflogging_p.h>
 #include <QtProtobuf/qprotobufregistration.h>
 
+#include <QtCore/q20utility.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qmetatype.h>
-#include <QtCore/qpair.h>
 #include <QtCore/qreadwritelock.h>
 #include <QtCore/qstring.h>
 
@@ -25,7 +26,7 @@ namespace {
 struct ProtobufOrderingRegistry
 {
     using ProtobufOrderingRegistryRecord =
-        QPair<QMetaType, QtProtobufPrivate::QProtobufPropertyOrdering>;
+        std::pair<QMetaType, QtProtobufPrivate::QProtobufPropertyOrdering>;
 
     void registerOrdering(QMetaType type, QtProtobufPrivate::QProtobufPropertyOrdering ordering)
     {
@@ -69,7 +70,8 @@ private:
 };
 
 Q_GLOBAL_STATIC(ProtobufOrderingRegistry, orderingRegistry)
-}
+
+} // namespace
 
 QT_BEGIN_NAMESPACE
 
@@ -143,9 +145,14 @@ FieldFlags QProtobufPropertyOrdering::fieldFlags(int index) const
     return FieldFlags { int(uint_dataForIndex(index, data->flagsOffset)) };
 }
 
-uint *QProtobufPropertyOrdering::uint_data(NonConstTag _) const
+/*!
+    \internal
+    Access the generated uint* metadata of message properties.
+    [ Data, uint_data , char_data ] > Message_metadata
+    [ . . , ^ x x x x , . . . . . ]
+*/
+uint *QProtobufPropertyOrdering::uint_data(NonConstTag /*unused*/) const
 {
-    Q_UNUSED(_);
     Q_ASSERT(data);
     Q_ASSERT(data->version == 0);
     quintptr dataPtr = quintptr(data);
@@ -164,17 +171,19 @@ const uint *QProtobufPropertyOrdering::uint_data() const
     return uint_data(NonConstTag{});
 }
 
-char *QProtobufPropertyOrdering::char_data(NonConstTag _) const
+/*!
+    \internal
+    Access the generated char* metadata of message properties.
+    [ Data, uint_data , char_data ] > Message_metadata
+    [ . . , . . . . . , ^ x x x x ]
+*/
+char *QProtobufPropertyOrdering::char_data(NonConstTag /*unused*/) const
 {
-    Q_UNUSED(_);
     Q_ASSERT(data);
-    const uint LastOffset = data->flagsOffset;
-    uint *u_data = uint_data(NonConstTag{}) + LastOffset + data->numFields;
-    quintptr uptr_data = quintptr(u_data);
-    if (size_t(uptr_data) % alignof(char) != 0)
-        uptr_data += alignof(char) - size_t(uptr_data) % alignof(char);
-    char *c_data = reinterpret_cast<char *>(uptr_data);
-    return c_data;
+    uint* uintDataPtr = uint_data(NonConstTag{});
+    // char_data starts after the last field flag (flagsOffset + numFields)
+    uint charDataOffset = data->flagsOffset + data->numFields;
+    return reinterpret_cast<char *>(uintDataPtr + charDataOffset);
 }
 
 const char *QProtobufPropertyOrdering::char_data() const
@@ -210,7 +219,7 @@ QProtobufMessagePointer constructMessageByName(const QString &messageType)
     QProtobufMessagePointer pointer;
     if (type.id() != QMetaType::UnknownType) {
         void *msg = type.create();
-        pointer.reset(reinterpret_cast<QProtobufMessage *>(msg));
+        pointer.reset(static_cast<QProtobufMessage *>(msg));
         return pointer;
     }
     qProtoWarning() << "Unable to find protobuf message with name" << messageType
@@ -310,7 +319,7 @@ QProtobufPropertyOrdering::Data *QProtobufPropertyOrderingBuilder::build() const
         uintData[i + data->flagsOffset] = uint(field.flags.toInt());
     }
     uintData[d->fields.size()] = jsonArrayOffset;
-    Q_ASSERT(jsonArrayOffset + NullTerminator == charSpaceNeeded);
+    Q_ASSERT(q20::cmp_equal(jsonArrayOffset + NullTerminator, charSpaceNeeded));
 
     char *charData = ordering.char_data(NonConstTag{});
     [[maybe_unused]]

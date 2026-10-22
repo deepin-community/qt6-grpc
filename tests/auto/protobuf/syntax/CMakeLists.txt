@@ -11,6 +11,7 @@ qt6_add_protobuf(tst_protobuf_syntax_qtprotobuf_gen
     PROTO_FILES
         ../../shared/data/proto/syntax.proto
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qt_protobuf_generated"
+    ALLOW_MUTABLE_GETTER_CONFLICTS
 )
 qt_autogen_tools_initial_setup(tst_protobuf_syntax_qtprotobuf_gen)
 
@@ -23,4 +24,8 @@ qt_internal_add_test(tst_protobuf_syntax
         Qt::Test
         Qt::Protobuf
         tst_protobuf_syntax_qtprotobuf_gen
+)
+
+set_target_properties(tst_protobuf_syntax_qtprotobuf_gen PROPERTIES
+    QT_USE_PROTOBUF_LIST_ALIASES FALSE
 )

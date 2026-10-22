@@ -1,6 +1,7 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // Copyright (C) 2019 Alexey Edelev <semlanik@gmail.com>, Tatyana Borisova <tanusshhka@mail.ru>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// Qt-Security score:critical reason:data-parser
 
 #include "messagedefinitionprinter.h"
 
@@ -118,7 +119,7 @@ void MessageDefinitionPrinter::printClassDefinitionPrivate()
         });
         m_printer->Print(scopeNamespaces, CommonTemplates::NamespaceClosingTemplate());
     }
-
+    printPrivateDurationExtras();
     printDataClass();
 
     printDestructor();
@@ -127,6 +128,7 @@ void MessageDefinitionPrinter::printClassDefinitionPrivate()
     printConstructors();
     printCopyFunctionality();
     printMoveSemantic();
+    printQVariantOperator();
     printComparisonOperators();
     printGetters();
     printPublicExtras();
@@ -147,6 +149,13 @@ void MessageDefinitionPrinter::printRegisterBody()
     // Special case:
     if (m_descriptor->full_name() == "google.protobuf.Any")
         m_printer->Print("QT_PREPEND_NAMESPACE(QtProtobuf)::Any::registerTypes();\n");
+
+    if (m_descriptor->file()->package() == "google.protobuf") {
+        if (common::hasCustomJsonCoversion(m_descriptor)) {
+            m_printer->Print({ { "type_name", m_descriptor->name() } },
+                CommonTemplates::CustomJsonHanderTemplate());
+        }
+    }
 
     common::iterateMessageFields(
             m_descriptor, [&](const FieldDescriptor *field, const PropertyMap &propertyMap) {
@@ -245,18 +254,22 @@ void MessageDefinitionPrinter::printUintData(const char *templateString)
     for (int i = 0, propertyIndex = 0; i < numFields; ++i, ++propertyIndex) {
         const FieldDescriptor *field = m_descriptor->field(i);
         const std::map<std::string, std::string> variables = {
-            { "json_name_offset", std::to_string(jsonOffset) },
-            { "field_number", std::to_string(field->number()) },
-            { "property_index", std::to_string(propertyIndex) },
-            { "field_flags", common::collectFieldFlags(field) },
-            { "json_name", field->json_name() },
+            { "json_name_offset", std::to_string(jsonOffset)        },
+            { "field_number",     std::to_string(field->number())   },
+            { "property_index",   std::to_string(propertyIndex)     },
+            { "field_flags",      common::collectFieldFlags(field)  },
+            { "json_name",        std::string{ field->json_name() } },
         };
 
-        // Oneof and optional properties generate additional has<FieldName> property next to the
-        // field property one.
+        // Oneof and optional properties generate additional has<FieldName>
+        // property next to the field property one.
+        // The repeated message property also generates 2 properties per field:
+        // <FieldName> and <FieldName>Data (the old one).
+        // The old one is deprecated and should be removed in Qt7.
         if (common::isOneofField(field) || common::isOptionalField(field) ||
-            common::isPureMessage(field))
+            common::isPureMessage(field) || common::isRepeatedMessage(field)) {
             ++propertyIndex;
+        }
 
         m_printer->Print(variables, templateString);
 
@@ -270,7 +283,7 @@ void MessageDefinitionPrinter::printCharData()
     m_printer->Print("// char_data\n");
 
     m_printer->Print("/* metadata char_data: */\n\"");
-    m_printer->Print(m_descriptor->full_name().c_str());
+    m_printer->Print(std::string{m_descriptor->full_name()}.c_str());
     m_printer->Print("\\0\" /* = full message name */\n");
 
     m_printer->Print("/* field char_data: */\n\"");
@@ -336,6 +349,12 @@ void MessageDefinitionPrinter::printMoveSemantic()
 {
     assert(m_descriptor != nullptr);
     m_printer->Print(m_typeMap, CommonTemplates::MoveConstructorDefinitionTemplate());
+}
+
+void MessageDefinitionPrinter::printQVariantOperator()
+{
+    assert(m_descriptor != nullptr);
+    m_printer->Print(m_typeMap, CommonTemplates::QVariantOperatorDefinitionTemplate());
 }
 
 void MessageDefinitionPrinter::printComparisonOperators()
@@ -412,6 +431,9 @@ void MessageDefinitionPrinter::printGetters()
                                          CommonTemplates::PrivateGetterMessageDefinitionTemplate());
                         m_printer->Print(propertyMap,
                                          CommonTemplates::GetterMessageDefinitionTemplate());
+                        m_printer->Print(propertyMap,
+                                         CommonTemplates::GetterMessageMutableDefinitionTemplate());
+
                         m_printer->Print(propertyMap,
                                          CommonTemplates::ClearMessageDefinitionTemplate());
                     } else {
@@ -511,6 +533,39 @@ void MessageDefinitionPrinter::printDestructor()
     m_printer->Print(m_typeMap, "$classname$::~$classname$() = default;\n\n");
 }
 
+void MessageDefinitionPrinter::printPrivateDurationExtras()
+{
+    if (m_descriptor->full_name() == "google.protobuf.Duration") {
+        m_printer->Print(
+            "constexpr qint64 SecondsRange = 315'576'000'000LL;\n"
+            "constexpr qint32 NanosRange = 999'999'999;\n"
+            "static constexpr bool checkDurationRange(qint64 seconds, qint32 nanos) noexcept\n"
+            "{\n"
+            "    if (seconds > SecondsRange || seconds < -SecondsRange) {\n"
+            "        qWarning(\"Invalid Duration: seconds=%lld out of range [-%lld, +%lld]\",\n"
+            "                 seconds, SecondsRange, -SecondsRange);\n"
+            "        return false;\n"
+            "    }\n"
+            "    if (nanos > NanosRange || nanos < -NanosRange) {\n"
+            "        qWarning(\"Invalid Duration: nanos=%d out of range [-%d, +%d]\",\n"
+            "                 nanos, NanosRange, -NanosRange);\n"
+            "        return false;\n"
+            "    }\n"
+            "    return true;\n"
+            "}\n"
+            "static constexpr bool checkSignMatch(qint64 seconds, qint32 nanos) noexcept\n"
+            "{\n"
+            "    const bool isSignMatch = !(seconds != 0 && nanos != 0 \n"
+            "        && (seconds ^ qint64(nanos)) < 0);\n"
+            "    if (!isSignMatch) {\n"
+            "        qWarning(\"Invalid sign between seconds = %lld and nanos = %d\",\n"
+            "                 seconds, nanos);\n"
+            "    }\n"
+            "    return isSignMatch;\n"
+            "}\n\n");
+    }
+}
+
 void MessageDefinitionPrinter::printPublicExtras()
 {
     if (m_descriptor->full_name() == "google.protobuf.Timestamp") {
@@ -526,6 +581,12 @@ void MessageDefinitionPrinter::printPublicExtras()
                 "{\n"
                 "    return QDateTime::fromMSecsSinceEpoch(\n"
                 "            seconds() * 1000 + nanos() / 1000000, QTimeZone(QTimeZone::UTC));\n"
+                "}\n\n");
+    } else if (m_descriptor->full_name() == "google.protobuf.Duration") {
+        m_printer->Print(
+                "bool Duration::isValid(QtProtobuf::int64 seconds, QtProtobuf::int32 nanos)\n"
+                "{\n"
+                "    return checkDurationRange(seconds, nanos) && checkSignMatch(seconds, nanos);\n"
                 "}\n\n");
     }
 }

@@ -39,13 +39,13 @@ qt_add_protobuf(tst_grpc_client_serverstream_qml_gen
     PROTO_FILES
         ../../../grpc/shared/proto/testservice.proto
     QML
-    QML_URI qtgrpc.tests
+    QML_URI qtgrpc.tests.serverstream
     OUTPUT_DIRECTORY
         "${CMAKE_CURRENT_BINARY_DIR}/qt_grpc_generated_qml"
 )
 
 qt_add_qml_module(tst_grpc_client_serverstream_qml
-    URI QmlTestUri
+    URI GrpcQuickTest.Client.ServerStream
     VERSION 1.0
     QML_FILES
         qml/tst_grpc_client_serverstream.qml

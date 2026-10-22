@@ -22,7 +22,6 @@ protected:
         NoChannels = 0x0,
         Qt = 0x1,
         Ssl = 0x2,
-        Json = 0x4,
         SslNoCredentials = 0x8,
         WithChannelDeadline = 0x10,
     };
@@ -38,7 +37,7 @@ public Q_SLOTS:
     void init();
 
 private:
-    ServerProcRunner m_serverProccess{ QFINDTESTDATA(TEST_GRPC_SERVER_PATH) };
+    ServerProcRunner m_serverProcess{ QFINDTESTDATA(TEST_GRPC_SERVER_PATH) };
     Channels m_channelType;
     Channels m_channels;
     std::shared_ptr<qtgrpc::tests::TestService::Client> m_client;

@@ -1,6 +1,7 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>, Tatyana Borisova <tanusshhka@mail.ru>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// Qt-Security score:critical reason:data-parser
 
 #include "messagedeclarationprinter.h"
 #include "utils.h"
@@ -31,7 +32,6 @@ MessageDeclarationPrinter::~MessageDeclarationPrinter() = default;
 void MessageDeclarationPrinter::printClassForwardDeclarationPrivate()
 {
     m_printer->Print(m_typeMap, CommonTemplates::ClassMessageForwardDeclarationTemplate());
-    m_printer->Print(m_typeMap, CommonTemplates::UsingMessageTemplate());
 
     if (common::hasNestedTypes(m_descriptor)) {
         auto scopeNamespaces = common::getNestedScopeNamespace(m_typeMap["classname"]);
@@ -123,6 +123,12 @@ void MessageDeclarationPrinter::printMoveSemantic()
     m_printer->Print(m_typeMap, CommonTemplates::SwapDeclarationTemplate());
 }
 
+void MessageDeclarationPrinter::printQVariantOperator()
+{
+    assert(m_descriptor != nullptr);
+    m_printer->Print(m_typeMap, CommonTemplates::QVariantOperatorDeclarationTemplate());
+}
+
 void MessageDeclarationPrinter::printComparisonOperators()
 {
     assert(m_descriptor != nullptr);
@@ -160,7 +166,6 @@ void MessageDeclarationPrinter::printNested()
         const auto *enumDescr = m_descriptor->enum_type(i);
         auto typeMap = common::produceEnumTypeMap(enumDescr, m_descriptor);
         m_printer->Print(typeMap, CommonTemplates::UsingEnumTemplate());
-        m_printer->Print(typeMap, CommonTemplates::UsingRepeatedEnumTemplate());
     }
 
     common::iterateOneofFields(m_descriptor, [this](const OneofDescriptor *, PropertyMap typeMap) {
@@ -179,7 +184,8 @@ void MessageDeclarationPrinter::printNested()
 
 void MessageDeclarationPrinter::printClassDeclarationBegin()
 {
-    m_printer->Print(m_typeMap, CommonTemplates::ClassMessageBeginDeclarationTemplate());
+    const Options::FinalPolicy policy = Options::instance().messageGenerationType();
+    m_printer->Print(m_typeMap, CommonTemplates::ClassMessageBeginDeclarationTemplate(policy));
 
     Indent();
     static const std::string exportMacro = common::buildExportMacro(false);
@@ -204,41 +210,49 @@ void MessageDeclarationPrinter::printProperties()
     Indent();
 
     const int numFields = m_descriptor->field_count();
-    for (int i = 0; i < numFields; ++i) {
-        const FieldDescriptor *field = m_descriptor->field(i);
-        const char *propertyTemplate = CommonTemplates::PropertyTemplate();
-        const auto propertyMap = common::producePropertyMap(field, m_descriptor);
-        if (common::isOneofField(field)) {
-            m_printer->Print(propertyMap,
-                             common::isPureMessage(field)
-                                     ? CommonTemplates::PropertyOneofMessageTemplate()
-                                     : CommonTemplates::PropertyOneofTemplate());
-            m_printer->Print(propertyMap, CommonTemplates::PropertyHasFieldTemplate());
-            continue;
-        }
+    const Options::FinalPolicy propertyType = Options::instance().propertyGenerationType();
+    common::iterateMessageFields(
+        m_descriptor, [&](const FieldDescriptor *field, const PropertyMap &propertyMap) {
+            const char *propertyTemplate = CommonTemplates::PropertyTemplate(propertyType);
+            if (common::isOneofField(field)) {
+                m_printer->Print(propertyMap,
+                                 common::isPureMessage(field)
+                                     ? CommonTemplates::PropertyOneofMessageTemplate(propertyType)
+                                     : CommonTemplates::PropertyOneofTemplate(propertyType));
+                m_printer->Print(propertyMap,
+                                 CommonTemplates::PropertyHasFieldTemplate(propertyType));
+                return;
+            }
 
-        if (common::isOptionalField(field)) {
-            m_printer->Print(propertyMap, CommonTemplates::PropertyOneofTemplate());
-            m_printer->Print(propertyMap, CommonTemplates::PropertyHasFieldTemplate());
-            continue;
-        }
+            if (common::isOptionalField(field)) {
+                m_printer->Print(propertyMap,
+                                 CommonTemplates::PropertyOneofTemplate(propertyType));
+                m_printer->Print(propertyMap,
+                                 CommonTemplates::PropertyHasFieldTemplate(propertyType));
+                return;
+            }
 
-        if (common::isPureMessage(field)) {
-            m_printer->Print(propertyMap,  CommonTemplates::PropertyMessageTemplate());
-            m_printer->Print(propertyMap, CommonTemplates::PropertyHasFieldTemplate());
-            continue;
-        }
+            if (common::isPureMessage(field)) {
+                m_printer->Print(propertyMap,
+                                 CommonTemplates::PropertyMessageTemplate(propertyType));
+                m_printer->Print(propertyMap,
+                                 CommonTemplates::PropertyHasFieldTemplate(propertyType));
+                return;
+            }
 
-        if (field->is_repeated() && !field->is_map()) {
-            // Non-message list properties don't require an extra QQmlListProperty to access
-            // their data, so the property name should not contain the 'Data' suffix
-            if (field->type() == FieldDescriptor::TYPE_MESSAGE)
-                propertyTemplate = CommonTemplates::PropertyRepeatedMessageTemplate();
-            else
-                propertyTemplate = CommonTemplates::PropertyRepeatedTemplate();
-        }
-        m_printer->Print(propertyMap, propertyTemplate);
-    }
+            if (common::isRepeatedMessage(field)) {
+                m_printer->Print(
+                    propertyMap,
+                    CommonTemplates::PropertyRepeatedMessageTemplate(propertyType));
+                m_printer->Print(
+                    propertyMap,
+                    CommonTemplates::PropertyRepeatedMessageTemplateDeprecated(propertyType));
+                return;
+            } else if (field->is_repeated() && !field->is_map()) {
+                propertyTemplate = CommonTemplates::PropertyRepeatedTemplate(propertyType);
+            }
+            m_printer->Print(propertyMap, propertyTemplate);
+        });
 
     // Generate extra QML property, that can be used in QML context
     if (Options::instance().hasQml()) {
@@ -246,7 +260,7 @@ void MessageDeclarationPrinter::printProperties()
             const FieldDescriptor *field = m_descriptor->field(i);
             if (common::isPureMessage(field)) {
                 m_printer->Print(common::producePropertyMap(field, m_descriptor),
-                                 CommonTemplates::PropertyQmlMessageTemplate());
+                                 CommonTemplates::PropertyQmlMessageTemplate(propertyType));
             }
         }
     }
@@ -280,6 +294,9 @@ void MessageDeclarationPrinter::printGetters()
                     if (common::isPureMessage(field)) {
                         m_printer->Print(propertyMap,
                                          CommonTemplates::GetterMessageDeclarationTemplate());
+                        m_printer
+                            ->Print(propertyMap,
+                                    CommonTemplates::GetterMessageMutableDeclarationTemplate());
                         m_printer->Print(propertyMap,
                                          Options::instance().hasQml()
                                              ? CommonTemplates::ClearQmlMessageDeclarationTemplate()
@@ -445,7 +462,6 @@ void MessageDeclarationPrinter::printQEnums()
         Outdent();
         m_printer->Print(CommonTemplates::SemicolonBlockEnclosureTemplate());
         m_printer->Print(typeMap, CommonTemplates::QEnumNSTemplate());
-        m_printer->Print(typeMap, CommonTemplates::UsingRepeatedEnumTemplate());
     }
 }
 
@@ -477,6 +493,10 @@ void MessageDeclarationPrinter::printPublicExtras()
         static const std::string exportMacro = common::buildExportMacro();
         m_printer->Print({ { "export_macro", exportMacro } },
                          CommonTemplates::QDateTimeExtrasTemplate());
+    } else if (m_descriptor->full_name() == "google.protobuf.Duration") {
+        static const std::string exportMacro = common::buildExportMacro();
+        m_printer->Print({ { "export_macro", exportMacro } },
+                         CommonTemplates::DurationExtrasTemplate());
     }
 }
 
@@ -494,6 +514,7 @@ void MessageDeclarationPrinter::printClassBody()
 
     printCopyFunctionality();
     printMoveSemantic();
+    printQVariantOperator();
 
     Outdent();
 
