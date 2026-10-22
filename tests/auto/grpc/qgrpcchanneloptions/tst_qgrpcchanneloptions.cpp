@@ -1,6 +1,8 @@
 // Copyright (C) 2024 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
+#include <grpccommonoptions.h>
+
 #include <QtGrpc/qgrpcchanneloptions.h>
 #include <QtGrpc/qgrpcserializationformat.h>
 
@@ -8,109 +10,71 @@
 
 #include <cstring>
 
-using namespace std::chrono_literals;
-
 class QGrpcChannelOptionsTest : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
-    void hasSpecialMemberFunctions() const;
-    void hasImplicitQVariant() const;
-    void hasMemberSwap() const;
-    void propertyMetadata() const;
-    void propertyDeadline() const;
+    void hasSpecialMemberFunctions() const { common.hasSpecialMemberFunctions(); }
+    void hasImplicitQVariant() const { common.hasImplicitQVariant(); }
+    void hasMemberSwap() const { common.hasMemberSwap(); }
+#if QT_DEPRECATED_SINCE(6, 13)
+    void deprecatedPropertyMetadata() const { common.deprecatedPropertyMetadata(); }
+    void propertyMetadataCompat() const { common.propertyMetadataCompat(); }
+#endif
+    void propertyMetadata() const { common.propertyMetadata(); }
+    void propertyDeadline() const { common.propertyDeadline(); }
+    void propertyFilterServerMetadata() const { common.propertyFilterServerMetadata(); }
+    void propertyRequestCompression() const { common.propertyRequestCompression(); }
+    void propertyAcceptedCompressionAlgorithms() const;
+    void streamsToDebug() const { common.streamsToDebug(); }
+    void comparesEqual() const { common.comparesEqual(); }
+
     void propertySerializationFormat() const;
+#if QT_CONFIG(ssl)
     void propertySslConfiguration() const;
-    void streamsToDebug() const;
+#endif
+
+private:
+    GrpcCommonOptionsTest<QGrpcChannelOptions> common;
 };
 
-void QGrpcChannelOptionsTest::hasSpecialMemberFunctions() const
+void QGrpcChannelOptionsTest::propertyAcceptedCompressionAlgorithms() const
 {
-    QGrpcChannelOptions o1;
-    QVERIFY(!o1.deadlineTimeout());
-    QVERIFY(o1.metadata().empty());
-    QVERIFY(!o1.sslConfiguration());
+    using namespace QtGrpc;
 
-    o1.setDeadlineTimeout(100ms);
-
-    QGrpcChannelOptions o2(o1);
-    QCOMPARE_EQ(o1.deadlineTimeout(), o2.deadlineTimeout());
-
-    QGrpcChannelOptions o3 = o1;
-    QCOMPARE_EQ(o1.deadlineTimeout(), o3.deadlineTimeout());
-
-    QGrpcChannelOptions o4(std::move(o1));
-    QCOMPARE_EQ(o4.deadlineTimeout(), o2.deadlineTimeout());
-
-    o1 = std::move(o4);
-    QCOMPARE_EQ(o1.deadlineTimeout(), o2.deadlineTimeout());
-}
-
-void QGrpcChannelOptionsTest::hasImplicitQVariant() const
-{
-    QGrpcChannelOptions o1;
-    o1.setDeadlineTimeout(250ms);
-    o1.setMetadata({
-        { "keyA", "valA" },
-        { "keyB", "valB" },
-    });
-
-    QVariant v = o1;
-    QCOMPARE_EQ(v.metaType(), QMetaType::fromType<QGrpcChannelOptions>());
-    const auto o2 = v.value<QGrpcChannelOptions>();
-    QCOMPARE_EQ(o1.metadata(), o2.metadata());
-    QCOMPARE_EQ(o1.deadlineTimeout(), o2.deadlineTimeout());
-}
-
-void QGrpcChannelOptionsTest::hasMemberSwap() const
-{
-    constexpr std::chrono::milliseconds Dur = 50ms;
+    const auto supported = QGrpcChannelOptions::supportedCompressionAlgorithms();
 
     QGrpcChannelOptions o1;
-    o1.setDeadlineTimeout(Dur);
-    QGrpcChannelOptions o2;
+    QCOMPARE_EQ(o1.acceptedCompressionAlgorithms(), supported);
+    QVERIFY(o1.acceptedCompressionAlgorithms().testFlag(CompressionAlgorithm::Identity));
 
-    QCOMPARE_EQ(o1.deadlineTimeout(), Dur);
-    QVERIFY(!o2.deadlineTimeout());
-    o2.swap(o1);
-    QCOMPARE_EQ(o2.deadlineTimeout(), Dur);
-    swap(o2, o1);
-    QCOMPARE_EQ(o1.deadlineTimeout(), Dur);
-    QVERIFY(!o2.deadlineTimeout());
-}
-
-void QGrpcChannelOptionsTest::propertyMetadata() const
-{
-    QHash<QByteArray, QByteArray> md = {
-        { "keyA", "valA" },
-        { "keyB", "valB" },
-    };
-
-    QGrpcChannelOptions o1;
+    // Refuse all compressed encodings: pass {Identity} explicitly.
     auto o1Detach = o1;
-    o1.setMetadata(md);
-    QCOMPARE_EQ(o1.metadata(), md);
-    QCOMPARE_NE(o1.metadata(), o1Detach.metadata());
+    o1.setAcceptedCompressionAlgorithms(CompressionAlgorithm::Identity);
+    QCOMPARE_NE(o1.acceptedCompressionAlgorithms(), o1Detach.acceptedCompressionAlgorithms());
+    QCOMPARE_EQ(o1.acceptedCompressionAlgorithms(),
+                CompressionAlgorithms{ CompressionAlgorithm::Identity });
+    QVERIFY(o1.acceptedCompressionAlgorithms().testFlag(CompressionAlgorithm::Identity));
+    QVERIFY(!o1.acceptedCompressionAlgorithms().testFlag(CompressionAlgorithm::Deflate));
+    QVERIFY(!o1.acceptedCompressionAlgorithms().testFlag(CompressionAlgorithm::Gzip));
 
-    QGrpcChannelOptions o2;
-    auto o2Detach = o2;
-    o2.setMetadata(std::move(md));
-    QCOMPARE_EQ(o2.metadata(), o1.metadata());
-    QCOMPARE_NE(o1.metadata(), o2Detach.metadata());
+    // Single algorithm: Identity is added back by the setter (spec-mandated).
+    o1.setAcceptedCompressionAlgorithms(CompressionAlgorithm::Gzip);
+    QCOMPARE_EQ(o1.acceptedCompressionAlgorithms(),
+                CompressionAlgorithm::Identity | CompressionAlgorithm::Gzip);
 
-    QCOMPARE_EQ(std::move(o1).metadata(), o2.metadata());
-}
+    // Explicit Identity OR'd with another algorithm: stored as-is.
+    o1.setAcceptedCompressionAlgorithms(CompressionAlgorithm::Identity
+                                        | CompressionAlgorithm::Deflate);
+    QCOMPARE_EQ(o1.acceptedCompressionAlgorithms(),
+                CompressionAlgorithm::Identity | CompressionAlgorithm::Deflate);
 
-void QGrpcChannelOptionsTest::propertyDeadline() const
-{
-    constexpr std::chrono::milliseconds Dur = 50ms;
-
-    QGrpcChannelOptions o1;
-    auto o1Detach = o1;
-    o1.setDeadlineTimeout(Dur);
-    QCOMPARE_EQ(o1.deadlineTimeout(), Dur);
-    QCOMPARE_NE(o1.deadlineTimeout(), o1Detach.deadlineTimeout());
+    // All compressed algorithms: Identity is added back by the setter.
+    o1.setAcceptedCompressionAlgorithms(CompressionAlgorithm::Deflate | CompressionAlgorithm::Gzip);
+    QCOMPARE_EQ(o1.acceptedCompressionAlgorithms(),
+                CompressionAlgorithm::Identity | CompressionAlgorithm::Deflate
+                    | CompressionAlgorithm::Gzip);
 }
 
 void QGrpcChannelOptionsTest::propertySerializationFormat() const
@@ -126,6 +90,7 @@ void QGrpcChannelOptionsTest::propertySerializationFormat() const
     QCOMPARE_NE(o1.serializationFormat().suffix(), o1Detach.serializationFormat().suffix());
 }
 
+#if QT_CONFIG(ssl)
 void QGrpcChannelOptionsTest::propertySslConfiguration() const
 {
     QSslConfiguration sslConfig;
@@ -139,20 +104,7 @@ void QGrpcChannelOptionsTest::propertySslConfiguration() const
     QCOMPARE_EQ(o1.sslConfiguration()->sessionTicket(), sslConfig.sessionTicket());
     QCOMPARE_NE(o1.sslConfiguration(), o1Detach.sslConfiguration());
 }
-
-void QGrpcChannelOptionsTest::streamsToDebug() const
-{
-    QGrpcChannelOptions o;
-    QString storage;
-    QDebug dbg(&storage);
-    dbg.nospace().noquote();
-
-    dbg << o;
-    QVERIFY(!storage.isEmpty());
-
-    std::unique_ptr<char[]> ustr(QTest::toString(o));
-    QCOMPARE_EQ(storage, QString::fromUtf8(ustr.get()));
-}
+#endif
 
 QTEST_MAIN(QGrpcChannelOptionsTest)
 

@@ -24,12 +24,13 @@ qt_add_protobuf(tst_protobuf_repeated_qml_gen
         ../../shared/data/proto/basicmessages.proto
         ../../shared/data/proto/repeatedmessages.proto
     QML
+    QML_URI "qtprotobufnamespace.tests.repeated"
     FIELD_ENUM
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qt_protobuf_generated"
 )
 
 qt_add_qml_module(tst_protobuf_repeated_qml
-    URI QmlTestUri
+    URI ProtobufQmlTest.MessageLists
     VERSION 1.0
     QML_FILES
         qml/tst_repeated.qml

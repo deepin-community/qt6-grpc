@@ -1,0 +1,3 @@
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtProtobuf/libprotobufquickplugin.so
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtProtobuf/plugins.qmltypes
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtProtobuf/qmldir

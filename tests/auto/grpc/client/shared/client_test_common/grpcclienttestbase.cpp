@@ -7,8 +7,6 @@
 #include <QtNetwork/qtnetwork-config.h>
 #include <message_latency_defs.h>
 
-using namespace Qt::Literals::StringLiterals;
-
 void GrpcClientTestBase::initTestCase_data()
 {
     QTest::addColumn<GrpcClientTestBase::Channels>("type");
@@ -20,7 +18,7 @@ void GrpcClientTestBase::initTestCase_data()
             << std::shared_ptr<
                    QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("http://localhost:50051",
                                                                     QUrl::StrictMode)));
-#ifndef Q_OS_WINDOWS
+#if !defined(Q_OS_WINDOWS) && QT_CONFIG(localserver)
         QTest::newRow("Http2ClientUnix")
             << QFlags{ Channel::Qt }
             << std::shared_ptr<
@@ -29,43 +27,24 @@ void GrpcClientTestBase::initTestCase_data()
 #endif
     }
 
-#ifdef TEST_GRPC_SERVER_SUPPORTS_JSON
-    if (m_channels.testFlag(Channel::Json)) {
-        QHash<QByteArray, QByteArray> md{
-            {"content-type"_ba, "application/grpc+json"}
-        };
-        QTest::newRow("Http2ClientJson")
-            << QFlags{ Channel::Qt }
-            << std::shared_ptr<
-                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("http://localhost:50051",
-                                                                    QUrl::StrictMode),
-                                                               QGrpcChannelOptions{}
-                                                                   .setMetadata(md)));
-
-        QTest::newRow("Http2ClientJsonUnix")
-            << QFlags{ Channel::Qt }
-            << std::shared_ptr<
-                   QAbstractGrpcChannel>(new QGrpcHttp2Channel(QUrl("unix:///tmp/qtgrpc_test.sock",
-                                                                    QUrl::StrictMode),
-                                                               QGrpcChannelOptions{}
-                                                                   .setMetadata(md)));
-    }
-#endif
-
 #if QT_CONFIG(ssl)
     if (m_channels.testFlag(Channel::Ssl)) {
         QFile caCerificateFile(":/assets/cert.pem");
-        QVERIFY2(caCerificateFile.open(QFile::ReadOnly), "Unable to open ssl ca certificate file");
-        QSslConfiguration sslConfig;
-        QSslCertificate caCert(caCerificateFile.readAll());
-        sslConfig.setProtocol(QSsl::TlsV1_2);
-        sslConfig.addCaCertificate(caCert);
-        sslConfig.setAllowedNextProtocols({ QByteArray("h2") });
-        QTest::newRow("Http2ClientSSL")
-            << QFlags{ Channel::Qt, Channel::Ssl }
-            << std::shared_ptr<QAbstractGrpcChannel>(
-                   new QGrpcHttp2Channel(QUrl("https://localhost:50052", QUrl::StrictMode),
-                                         QGrpcChannelOptions{}.setSslConfiguration(sslConfig)));
+        if (caCerificateFile.open(QFile::ReadOnly)) {
+            QSslConfiguration sslConfig;
+            QSslCertificate caCert(caCerificateFile.readAll());
+            sslConfig.setProtocol(QSsl::TlsV1_2);
+            sslConfig.addCaCertificate(caCert);
+            sslConfig.setAllowedNextProtocols({ QByteArray("h2") });
+            QTest::newRow("Http2ClientSSL")
+                << QFlags{ Channel::Qt, Channel::Ssl }
+                << std::shared_ptr<QAbstractGrpcChannel>(
+                    new QGrpcHttp2Channel(QUrl("https://localhost:50052", QUrl::StrictMode),
+                                            QGrpcChannelOptions{}.setSslConfiguration(sslConfig)));
+        } else {
+            qDebug() << "Unable to open ssl ca certificate file for testing. Check the openssl"
+                " executable in your system and rebuild the test.";
+        }
     }
 
     if (m_channels.testFlag(Channel::SslNoCredentials)) {
@@ -105,10 +84,10 @@ void GrpcClientTestBase::init()
     m_client = std::make_shared<qtgrpc::tests::TestService::Client>();
     m_client->attachChannel(std::move(channel));
 
-    if (m_serverProccess.state() != QProcess::ProcessState::Running) {
+    if (m_serverProcess.state() != QProcess::ProcessState::Running) {
         qInfo() << "Restarting server";
-        m_serverProccess.restart();
-        QVERIFY2(m_serverProccess.state() == QProcess::ProcessState::Running,
+        m_serverProcess.restart();
+        QVERIFY2(m_serverProcess.state() == QProcess::ProcessState::Running,
                  "Precondition failed - Server cannot be started.");
     }
 }

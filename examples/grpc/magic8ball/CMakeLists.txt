@@ -16,13 +16,10 @@ find_package(Qt6 REQUIRED COMPONENTS
     ProtobufQuick
     Grpc
     GrpcQuick
-    GrpcTools
     Quick
 )
 
 qt_standard_project_setup()
-
-add_subdirectory(grpc_server_example)
 
 qt_add_executable(magic8ball
     main.cpp
@@ -50,11 +47,11 @@ qt_add_qml_module(magic8ball
     VERSION 1.0
     RESOURCE_PREFIX "/qt/qml"
     QML_FILES
-        "WaitingAnimation.qml"
         "AnimatedAnswer.qml"
         "MagicText.qml"
-        "ProgressDot.qml"
+        "MagicBall.qml"
         "Main.qml"
+        "ScaleAnimation.qml"
 )
 
 target_link_libraries(magic8ball PRIVATE
@@ -71,3 +68,13 @@ install(TARGETS magic8ball
     BUNDLE DESTINATION "${INSTALL_EXAMPLEDIR}"
     LIBRARY DESTINATION "${INSTALL_EXAMPLEDIR}"
 )
+
+add_subdirectory(server)
+if(TARGET magic8ball_server)
+    add_dependencies(magic8ball magic8ball_server)
+else()
+    message(WARNING "${PROJECT_NAME} server requires gRPC. Please install the C++ libraries in your"
+        " system or use vcpkg:"
+        "\n${QT${QT_VERSION_MAJOR}_INSTALL_BINS}/qt-cmake -S ${CMAKE_CURRENT_SOURCE_DIR} \\"
+        "\n-DQT_USE_VCPKG=TRUE")
+endif()

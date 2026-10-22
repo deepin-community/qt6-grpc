@@ -1,6 +1,8 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
+#include <QtGrpc/private/qgrpccommonoptions_p.h>
+#include <QtGrpc/private/qtgrpclogging_p.h>
 #include <QtGrpc/qgrpccalloptions.h>
 
 #include <QtCore/qbytearray.h>
@@ -14,67 +16,85 @@ using namespace Qt::StringLiterals;
 /*!
     \class QGrpcCallOptions
     \inmodule QtGrpc
-    \brief The QGrpcCallOptions is an storage class used to set additional call options.
+    \compares equality
+    \brief The QGrpcCallOptions class offers various options for fine-tuning
+    individual RPCs.
     \since 6.6
 
-    QGrpcCallOptions provides a set of functions to access the call options
-    that are used by gRPC channels to communicate with the services.
+    QGrpcCallOptions lets you customize individual remote procedure calls (RPCs).
+    The generated client interface provides access points to pass the QGrpcCallOptions.
+    These options supersede the ones set via QGrpcChannelOptions.
+
+    To configure the default options shared by RPCs, use QGrpcChannelOptions.
+
+    \code
+        QGrpcCallOptions callOpts;
+        // Set the metadata for an individial RPC
+        callOpts.setMetadata({
+            { "header" , "value1" },
+            { "header" , "value2" },
+        });
+        const auto &md = callOpts.metadata(QtGrpc::MultiValue);
+        qDebug() << "Call Metadata: " << md;
+
+        // Set a 2-second deadline for an individial RPC
+        callOpts.setDeadlineTimeout(2s);
+        qDebug() << "Call timeout: " << callOpts.deadlineTimeout();
+    \endcode
 */
 
-class QGrpcCallOptionsPrivate : public QSharedData
+class QGrpcCallOptionsPrivate : public QGrpcCommonOptions
 {
 public:
-    std::optional<std::chrono::milliseconds> timeout;
-    QHash<QByteArray, QByteArray> metadata;
+    QGrpcCallOptionsPrivate() = default;
 };
 
 QT_DEFINE_QESDP_SPECIALIZATION_DTOR(QGrpcCallOptionsPrivate)
 
 /*!
-    Constructs an empty QGrpcCallOptions object.
+    Default-constructs an empty QGrpcCallOptions.
 */
 QGrpcCallOptions::QGrpcCallOptions() : d_ptr(new QGrpcCallOptionsPrivate())
 {
 }
 
 /*!
-    Destroys the QGrpcCallOptions object.
+    Destroys the QGrpcCallOptions.
 */
 QGrpcCallOptions::~QGrpcCallOptions() = default;
 
 /*!
-    Construct a copy of QGrpcCallOptions with \a other object.
+    Copy-constructs a QGrpcCallOptions from \a other.
 */
 QGrpcCallOptions::QGrpcCallOptions(const QGrpcCallOptions &other) = default;
 
 /*!
-    Assigns \a other to this QGrpcCallOptions and returns a reference to this
-    QGrpcCallOptions.
+    Assigns \a other to this QGrpcCallOptions and returns a reference to the
+    updated object.
 */
 QGrpcCallOptions &QGrpcCallOptions::operator=(const QGrpcCallOptions &other) = default;
 
 /*!
-    \fn QGrpcCallOptions::QGrpcCallOptions(QGrpcCallOptions &&other) noexcept
+    \fn QGrpcCallOptions::QGrpcCallOptions(QGrpcCallOptions &&other)
+
     Move-constructs a new QGrpcCallOptions from \a other.
 
-    \note The moved-from object \a other is placed in a partially-formed state,
-    in which the only valid operations are destruction and assignment of a new
-    value.
+    \include qtgrpc-shared.qdocinc move-note-desc
 */
 
 /*!
-    \fn QGrpcCallOptions &QGrpcCallOptions::operator=(QGrpcCallOptions &&other) noexcept
-    Move-assigns \a other to this QGrpcCallOptions instance and returns a
-    reference to it.
+    \fn QGrpcCallOptions &QGrpcCallOptions::operator=(QGrpcCallOptions &&other)
 
-    \note The moved-from object \a other is placed in a partially-formed state,
-    in which the only valid operations are destruction and assignment of a new
-    value.
+    Move-assigns \a other to this QGrpcCallOptions and returns a reference to
+    the updated object.
+
+    \include qtgrpc-shared.qdocinc move-note-desc
 */
 
 /*!
     \since 6.8
-    Constructs a new QVariant object from this QGrpcCallOptions.
+
+    \include qtgrpc-shared.qdocinc qvariant-desc
 */
 QGrpcCallOptions::operator QVariant() const
 {
@@ -83,95 +103,292 @@ QGrpcCallOptions::operator QVariant() const
 
 /*!
     \since 6.8
-    \fn void QGrpcCallOptions::swap(QGrpcCallOptions &other) noexcept
-    Swaps this instance with \a other. This operation is very fast and never fails.
+    \fn void QGrpcCallOptions::swap(QGrpcCallOptions &other)
+
+    \include qtgrpc-shared.qdocinc swap-desc
 */
 
 /*!
-    Sets deadline value with \a timeout and returns updated QGrpcCallOptions object.
+    \include qgrpccommonoptions.cpp set-deadline-timeout
+
+    \note Setting this field \b{overrides} the corresponding channel options field
+    — see \l{QGrpcChannelOptions::setDeadlineTimeout()}
+
+    \sa deadlineTimeout()
 */
 QGrpcCallOptions &QGrpcCallOptions::setDeadlineTimeout(std::chrono::milliseconds timeout)
 {
-    if (d_ptr->timeout == timeout)
+    if (d_ptr->deadlineTimeout() == timeout)
         return *this;
     d_ptr.detach();
     Q_D(QGrpcCallOptions);
-    d->timeout = timeout;
+    d->setDeadlineTimeout(timeout);
     return *this;
 }
 
 /*!
-    Sets \a metadata for a call and returns updated QGrpcCallOptions object.
-
-    For HTTP2-based channels, \a metadata is converted into HTTP/2 headers, that
-    added to the corresponding HTTP/2 request.
-*/
-QGrpcCallOptions &QGrpcCallOptions::setMetadata(const QHash<QByteArray, QByteArray> &metadata)
-{
-    if (d_ptr->metadata == metadata)
-        return *this;
-    d_ptr.detach();
-    Q_D(QGrpcCallOptions);
-    d->metadata = metadata;
-    return *this;
-}
-
-/*!
-    Sets \a metadata for a call and returns updated QGrpcCallOptions object.
-
-    \sa setMetadata()
-*/
-QGrpcCallOptions &QGrpcCallOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
-{
-    if (d_ptr->metadata == metadata)
-        return *this;
-    d_ptr.detach();
-    Q_D(QGrpcCallOptions);
-    d->metadata = std::move(metadata);
-    return *this;
-}
-
-/*!
-    Returns deadline value for a call.
-
-    Deadline value controls the maximum execution time of an call or a stream.
-    This value overrides value set by QGrpcChannelOptions::deadline()
-    for a specific call or stream.
-
-    If value was not set returns empty std::optional.
+    \include qgrpccommonoptions.cpp deadline-timeout
 */
 std::optional<std::chrono::milliseconds> QGrpcCallOptions::deadlineTimeout() const noexcept
 {
     Q_D(const QGrpcCallOptions);
-    return d->timeout;
+    return d->deadlineTimeout();
 }
 
+#if QT_DEPRECATED_SINCE(6, 13)
+
 /*!
-    \fn const QHash<QByteArray, QByteArray> &QGrpcCallOptions::metadata() const & noexcept
-    \fn QHash<QByteArray, QByteArray> QGrpcCallOptions::metadata() && noexcept
+    \fn const QHash<QByteArray, QByteArray> &QGrpcCallOptions::metadata() const &
+    \fn QHash<QByteArray, QByteArray> QGrpcCallOptions::metadata() &&
+    \deprecated [6.13] Use the QMultiHash overload instead.
 
-    Returns metadata used for a call.
+    \include qgrpccommonoptions.cpp metadata
 
-    If the value was not set returns an empty QHash<QByteArray, QByteArray>.
+    \sa setMetadata()
 */
 const QHash<QByteArray, QByteArray> &QGrpcCallOptions::metadata() const & noexcept
 {
     Q_D(const QGrpcCallOptions);
-    return d->metadata;
+    return d->metadata();
 }
-
 QHash<QByteArray, QByteArray> QGrpcCallOptions::metadata() &&
 {
     Q_D(QGrpcCallOptions);
-    if (d->ref.loadRelaxed() != 1) // return copy if shared
-        return { d->metadata };
-    return std::move(d->metadata);
+    if (d->ref.loadRelaxed() != 1)
+        return d->metadata();
+    return std::move(*d_ptr).metadata();
 }
+
+/*!
+    \fn QGrpcCallOptions &QGrpcCallOptions::setMetadata(const QHash<QByteArray, QByteArray> &metadata)
+    \fn QGrpcCallOptions &QGrpcCallOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
+    \deprecated [6.13] Use the QMultiHash overload instead.
+
+    \include qgrpccommonoptions.cpp set-metadata
+
+//! [merge-md-note]
+    \note Call metadata is \b{merged} with any channel-level metadata when the
+    RPC starts — see
+//! [merge-md-note]
+    \l{QGrpcChannelOptions::setMetadata(const QMultiHash<QByteArray,
+    QByteArray>&)}{QGrpcChannelOptions::setMetadata(QMultiHash)}.
+
+    \sa metadata()
+*/
+QGrpcCallOptions &QGrpcCallOptions::setMetadata(const QHash<QByteArray, QByteArray> &metadata)
+{
+    if (d_ptr->metadata() == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setMetadata(metadata);
+    return *this;
+}
+QGrpcCallOptions &QGrpcCallOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
+{
+    if (d_ptr->metadata() == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setMetadata(std::move(metadata));
+    return *this;
+}
+
+#endif // QT_DEPRECATED_SINCE(6, 13)
+
+/*!
+    \since 6.10
+    \fn const QMultiHash<QByteArray, QByteArray> &QGrpcCallOptions::metadata(QtGrpc::MultiValue_t) const &
+    \fn QMultiHash<QByteArray, QByteArray> QGrpcCallOptions::metadata(QtGrpc::MultiValue_t) &&
+
+    \include qgrpccommonoptions.cpp metadata-multi
+
+    \sa {setMetadata(const QMultiHash<QByteArray, QByteArray>&)}{setMetadata}
+*/
+const QMultiHash<QByteArray, QByteArray> &
+QGrpcCallOptions::metadata(QtGrpc::MultiValue_t tag) const & noexcept
+{
+    Q_D(const QGrpcCallOptions);
+    return d->metadata(tag);
+}
+QMultiHash<QByteArray, QByteArray> QGrpcCallOptions::metadata(QtGrpc::MultiValue_t tag) &&
+{
+    Q_D(QGrpcCallOptions);
+    if (d->ref.loadRelaxed() != 1)
+        return d->metadata(tag);
+    return std::move(*d_ptr).metadata(tag);
+}
+
+/*!
+    \since 6.10
+    \fn QGrpcCallOptions &QGrpcCallOptions::setMetadata(const QMultiHash<QByteArray, QByteArray> &metadata)
+    \fn QGrpcCallOptions &QGrpcCallOptions::setMetadata(QMultiHash<QByteArray, QByteArray> &&metadata)
+    \fn QGrpcCallOptions &QGrpcCallOptions::setMetadata(std::initializer_list<std::pair<QByteArray, QByteArray>> metadata)
+
+    \include qgrpccommonoptions.cpp set-metadata-multi
+
+    \include qgrpccalloptions.cpp merge-md-note
+    \l{QGrpcChannelOptions::setMetadata(const QMultiHash<QByteArray,
+    QByteArray>&)}{QGrpcChannelOptions::setMetadata(QMultiHash)}.
+
+    \sa metadata(QtGrpc::MultiValue_t)
+*/
+QGrpcCallOptions &QGrpcCallOptions::setMetadata(const QMultiHash<QByteArray, QByteArray> &metadata)
+{
+    if (d_ptr->metadata(QtGrpc::MultiValue) == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setMetadata(metadata);
+    return *this;
+}
+QGrpcCallOptions &QGrpcCallOptions::setMetadata(QMultiHash<QByteArray, QByteArray> &&metadata)
+{
+    if (d_ptr->metadata(QtGrpc::MultiValue) == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setMetadata(std::move(metadata));
+    return *this;
+}
+QGrpcCallOptions &
+QGrpcCallOptions::setMetadata(std::initializer_list<std::pair<QByteArray, QByteArray>> list)
+{
+    return setMetadata(QMultiHash<QByteArray, QByteArray>(list));
+}
+
+/*!
+    \include qgrpccommonoptions.cpp add-metadata
+
+    \include qgrpccalloptions.cpp merge-md-note
+    \l{QGrpcChannelOptions::addMetadata()}
+*/
+QGrpcCallOptions &QGrpcCallOptions::addMetadata(QByteArrayView key, QByteArrayView value)
+{
+    if (d_ptr->containsMetadata(key, value))
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->addMetadata(key.toByteArray(), value.toByteArray());
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp filterServerMetadata
+    \sa QGrpcChannelOptions::filterServerMetadata()
+*/
+std::optional<bool> QGrpcCallOptions::filterServerMetadata() const noexcept
+{
+    Q_D(const QGrpcCallOptions);
+    return d->filterServerMetadata();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setFilterServerMetadata
+    \note Setting this field \b{overrides} the corresponding channel options
+    field — see \l{QGrpcChannelOptions::setFilterServerMetadata()}
+
+    \sa QGrpcChannelOptions::setFilterServerMetadata()
+*/
+QGrpcCallOptions &QGrpcCallOptions::setFilterServerMetadata(bool value)
+{
+    if (d_ptr->filterServerMetadata() == value)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setFilterServerMetadata(value);
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp maximumReceiveMessageSize
+    \sa QGrpcChannelOptions::maximumReceiveMessageSize()
+*/
+std::optional<quint64> QGrpcCallOptions::maximumReceiveMessageSize() const
+{
+    Q_D(const QGrpcCallOptions);
+    return d->maximumReceiveMessageSize();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setMaximumReceiveMessageSize
+    \note Setting this field \b{overrides} the corresponding channel options
+    field — see \l{QGrpcChannelOptions::setMaximumReceiveMessageSize}.
+
+    \sa QGrpcChannelOptions::setMaximumReceiveMessageSize()
+*/
+QGrpcCallOptions &QGrpcCallOptions::setMaximumReceiveMessageSize(quint64 size)
+{
+    if (d_ptr->maximumReceiveMessageSize() == size)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setMaximumReceiveMessageSize(size);
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp requestCompression
+    \sa QGrpcChannelOptions::requestCompression()
+*/
+std::optional<QtGrpc::CompressionAlgorithm> QGrpcCallOptions::requestCompression() const
+{
+    Q_D(const QGrpcCallOptions);
+    return d->requestCompression();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setRequestCompression
+    \note Setting this field \b{overrides} the corresponding channel options
+    field.
+
+    \sa QGrpcChannelOptions::setRequestCompression()
+*/
+QGrpcCallOptions &QGrpcCallOptions::setRequestCompression(QtGrpc::CompressionAlgorithm algorithm)
+{
+    if (d_ptr->requestCompression() == algorithm)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcCallOptions);
+    d->setRequestCompression(algorithm);
+    return *this;
+}
+
+/*
+//! [compares]
+    Returns \c true if the \l{deadlineTimeout}, \l{filterServerMetadata},
+    \l{maximumReceiveMessageSize}, \l{requestCompression}, and
+    \l{metadata(QtGrpc::MultiValue_t)} in \a lhs and \a rhs are
+//! [compares]
+*/
+bool comparesEqual(const QGrpcCallOptions &lhs, const QGrpcCallOptions &rhs)
+{
+    return lhs.deadlineTimeout() == rhs.deadlineTimeout()
+        && lhs.filterServerMetadata() == rhs.filterServerMetadata()
+        && lhs.maximumReceiveMessageSize() == rhs.maximumReceiveMessageSize()
+        && lhs.requestCompression() == rhs.requestCompression()
+        && lhs.metadata(QtGrpc::MultiValue) == rhs.metadata(QtGrpc::MultiValue);
+}
+
+/*!
+    \since 6.11
+    \fn bool QGrpcCallOptions::operator==(const QGrpcCallOptions &lhs, const QGrpcCallOptions &rhs)
+    \include qgrpccalloptions.cpp compares
+    equal.
+*/
+
+/*!
+    \since 6.11
+    \fn bool QGrpcCallOptions::operator!=(const QGrpcCallOptions &lhs, const QGrpcCallOptions &rhs)
+    \include qgrpccalloptions.cpp compares
+    not equal.
+*/
 
 #ifndef QT_NO_DEBUG_STREAM
 /*!
     \since 6.8
     \fn QDebug QGrpcCallOptions::operator<<(QDebug debug, const QGrpcCallOptions &callOpts)
+
     Writes \a callOpts to the specified stream \a debug.
 */
 QDebug operator<<(QDebug debug, const QGrpcCallOptions &callOpts)
@@ -179,7 +396,10 @@ QDebug operator<<(QDebug debug, const QGrpcCallOptions &callOpts)
     const QDebugStateSaver save(debug);
     debug.nospace().noquote();
     debug << "QGrpcCallOptions(deadline: " << callOpts.deadlineTimeout()
-          << ", metadata: " << callOpts.metadata() << ')';
+          << ", metadata: " << callOpts.metadata(QtGrpc::MultiValue)
+          << ", filterServerMetadata: " << callOpts.filterServerMetadata()
+          << ", maximumReceiveMessageSize: " << callOpts.maximumReceiveMessageSize() << ')'
+          << ", requestCompression: " << callOpts.requestCompression() << ')';
     return debug;
 }
 #endif

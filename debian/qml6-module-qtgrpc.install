@@ -1,0 +1,3 @@
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtGrpc/libgrpcquickplugin.so
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtGrpc/plugins.qmltypes
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/QtGrpc/qmldir

@@ -15,23 +15,43 @@ using namespace Qt::StringLiterals;
 /*!
     \class QGrpcCallReply
     \inmodule QtGrpc
+    \brief The QGrpcCallReply class provides access in handling unary RPCs.
 
-    \brief The QGrpcCallReply class implements logic to handle gRPC calls
-    from the gRPC client side.
+    The QGrpcCallReply class provides the interface for handling unary remote
+    procedure calls (RPCs), which is one of the four \gRPC \l{Service
+    Methods}{service methods}.
 
-    The QGrpcCallReply object is owned by the client object that created it.
+    For a high-level overview, refer to the \l{Unary Calls} {Qt GRPC
+    Client Guide}.
+
+    \include qtgrpc-shared.qdocinc rpc-lifetime-note
 */
 
-QGrpcCallReply::QGrpcCallReply(std::shared_ptr<QGrpcOperationContext> operationContext)
-    : QGrpcOperation(std::move(operationContext))
+/*!
+    \internal
+
+    Constructs a new QGrpcCallReply from the QGrpcClientBase.
+
+    This is indirectly called by the generated client interface.
+
+    \sa QGrpcClientBase::call QAbstractGrpcChannel::call
+*/
+QGrpcCallReply::QGrpcCallReply(QLatin1StringView service, QLatin1StringView method,
+                               const QGrpcCallOptions &options,
+                               std::weak_ptr<QAbstractGrpcChannel> channel,
+                               PrivateConstructor /* unused */)
+    : QGrpcOperation({ service, method, QtGrpc::RpcType::UnaryCall }, options, std::move(channel))
 {
 }
 
+/*!
+    Destroys the QGrpcCallReply.
+*/
 QGrpcCallReply::~QGrpcCallReply() = default;
 
 bool QGrpcCallReply::event(QEvent *event)
 {
-    return QObject::event(event);
+    return QGrpcOperation::event(event);
 }
 
 QT_END_NAMESPACE

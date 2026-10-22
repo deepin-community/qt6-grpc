@@ -1,29 +1,30 @@
 Source: qt6-grpc
 Section: libs
-Priority: optional
 Maintainer: Debian Qt/KDE Maintainers <debian-qt-kde@lists.debian.org>
 Uploaders: Patrick Franz <deltaone@debian.org>,
-Build-Depends: cmake (>= 3.24~),
-               debhelper-compat (= 13),
+Build-Depends: debhelper-compat (= 13),
+               dh-sequence-pkgkde-symbolshelper,
+               dh-sequence-qmldeps,
+               cmake (>= 3.24~),
                libgrpc++-dev,
                libprotobuf-c-dev,
                libprotobuf-dev,
                libprotoc-dev,
                ninja-build,
-               pkg-config,
                pkg-kde-tools,
+               pkgconf,
                protobuf-compiler-grpc,
-               qt6-base-dev (>= 6.8.0+dfsg~),
-               qt6-base-private-dev (>= 6.8.0+dfsg~),
-               qt6-declarative-dev (>= 6.8.0~),
-	       qt6-declarative-private-dev (>= 6.8.0~),
-Build-Depends-Indep: qt6-base-dev (>= 6.8~) <!nodoc>,
-                     qt6-documentation-tools (>= 6.8~) <!nodoc>,
-Standards-Version: 4.6.2
+               qt6-base-dev (>= 6.11.2+dfsg~),
+               qt6-base-private-dev (>= 6.11.2+dfsg~),
+               qt6-declarative-dev (>= 6.11.2+dfsg~),
+               qt6-declarative-private-dev (>= 6.11.2+dfsg~),
+               qt6-grpc-dev:native <cross>,
+Build-Depends-Indep: qt6-base-dev (>= 6.11~) <!nodoc>,
+                     qt6-documentation-tools (>= 6.11~) <!nodoc>,
+Standards-Version: 4.7.4
 Homepage: https://www.qt.io/developers/
 Vcs-Browser: https://salsa.debian.org/qt-kde-team/qt6/qt6-grpc
 Vcs-Git: https://salsa.debian.org/qt-kde-team/qt6/qt6-grpc.git
-Rules-Requires-Root: no
 
 Package: libqt6grpc6
 Architecture: any
@@ -35,6 +36,17 @@ Description: Qt 6 gRPC library
  is its rich set of widgets that provide standard GUI functionality.
  .
  This package contains the library for Qt 6 gRPC.
+
+Package: libqt6grpcquick6
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends}, ${shlibs:Depends},
+Description: Qt 6 gRPC Quick library
+ Qt is a cross-platform C++ application framework. Qt's primary feature
+ is its rich set of widgets that provide standard GUI functionality.
+ .
+ This package contains the library for Qt 6 gRPC Quick.
 
 Package: libqt6protobuf6
 Architecture: any
@@ -69,6 +81,17 @@ Description: Qt 6 procotol buffers Qt GUI types library
  .
  This package contains the library for Qt 6 protocol buffers Qt GUI types.
 
+Package: libqt6protobufquick6
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends}, ${shlibs:Depends},
+Description: Qt 6 protocol buffers QML library
+ Qt is a cross-platform C++ application framework. Qt's primary feature
+ is its rich set of widgets that provide standard GUI functionality.
+ .
+ This package contains the QML library for Qt 6 protocol buffers.
+
 Package: libqt6protobufwellknowntypes6
 Architecture: any
 Multi-Arch: same
@@ -80,15 +103,41 @@ Description: Qt 6 gRPC protocol buffers Well Known types library
  .
  This package contains the library for Qt 6 protocol buffer Well Known types.
 
+Package: qml6-module-qtgrpc
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends}, ${qml6:Depends}, ${shlibs:Depends},
+Description: Qt 6 gRPC QML module
+ Qt is a cross-platform C++ application framework. Qt's primary feature
+ is its rich set of widgets that provide standard GUI functionality.
+ .
+ This package contains the QML module for Qt gRPC.
+
+Package: qml6-module-qtprotobuf
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends}, ${qml6:Depends}, ${shlibs:Depends},
+Description: Qt 6 protocol buffers QML module
+ Qt is a cross-platform C++ application framework. Qt's primary feature
+ is its rich set of widgets that provide standard GUI functionality.
+ .
+ This package contains the QML module for Qt protocol buffers.
+
 Package: qt6-grpc-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
 Depends: libqt6grpc6 (= ${binary:Version}),
+         libqt6grpcquick6 (= ${binary:Version}),
          libqt6protobuf6 (= ${binary:Version}),
          libqt6protobufqtcoretypes6 (= ${binary:Version}),
          libqt6protobufqtguitypes6 (= ${binary:Version}),
+         libqt6protobufquick6 (= ${binary:Version}),
          libqt6protobufwellknowntypes6 (= ${binary:Version}),
+         qml6-module-qtgrpc (= ${binary:Version}),
+         qml6-module-qtprotobuf (= ${binary:Version}),
          qt6-base-dev,
          qt6-grpc-tools (= ${binary:Version}),
          ${misc:Depends},
@@ -103,6 +152,7 @@ Section: libdevel
 Architecture: any
 Multi-Arch: foreign
 Depends: libqt6grpc6 (= ${binary:Version}),
+         libqt6protobuf6 (= ${binary:Version}),
          qt6-base-dev,
          ${misc:Depends},
          ${shlibs:Depends},
@@ -113,6 +163,7 @@ Description: Qt 6 gRPC tools
  This package contains binaries required for gRPC/protobuf generation.
 
 Package: qt6-grpc-doc
+Build-Profiles: <!nodoc>
 Architecture: all
 Section: doc
 Depends: qt6-base-doc, ${misc:Depends},
@@ -124,6 +175,7 @@ Description: Qt 6 gRPC documentation
  This package contains the documentation for the Qt 6 gRPC.
 
 Package: qt6-grpc-doc-html
+Build-Profiles: <!nodoc>
 Architecture: all
 Section: doc
 Depends: qt6-base-doc-html, ${misc:Depends},
@@ -135,6 +187,7 @@ Description: Qt 6 gRPC HTML documentation
  This package contains the HTML documentation for the Qt 6 gRPC.
 
 Package: qt6-grpc-doc-dev
+Build-Profiles: <!nodoc>
 Architecture: all
 Section: libdevel
 Depends: qt6-base-doc-dev, ${misc:Depends},

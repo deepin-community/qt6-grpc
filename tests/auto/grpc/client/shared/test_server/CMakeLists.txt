@@ -1,14 +1,69 @@
 # Copyright (C) 2022 The Qt Company Ltd.
 # SPDX-License-Identifier: BSD-3-Clause
 
-find_package(WrapgRPCPlugin)
-find_package(WrapProtobuf)
-find_package(WrapgRPC)
+# Find OpenSSL first since it's a transitive dependency that may not be available in CONFIG mode
+find_package(OpenSSL)
 
-if(NOT WrapgRPCPlugin_FOUND OR NOT WrapProtobuf_FOUND OR NOT WrapgRPC_FOUND)
+set(_qt_grpc_backup_prefer_config ${CMAKE_FIND_PACKAGE_PREFER_CONFIG})
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
+
+find_package(Protobuf)
+find_package(gRPC)
+
+# Renew certificates at each test build
+find_program(openssl NAMES openssl openssl.exe)
+set(certificates_output_dir "${CMAKE_CURRENT_BINARY_DIR}/assets")
+file(REMOVE
+    "${certificates_output_dir}/key.pem"
+    "${certificates_output_dir}/cert.pem"
+)
+if(NOT openssl)
+    message(WARNING "Unable to generate openssl certificates. 'openssl' "
+        "executable is not found.")
+else()
+    message("Generate: ${certificates_output_dir}/key.pem"
+        " ${certificates_output_dir}/cert.pem")
+
+    file(MAKE_DIRECTORY "${certificates_output_dir}")
+    execute_process(
+        COMMAND
+            "${openssl}" req
+            -x509
+            -newkey rsa:4096
+            -days 365
+            -nodes
+            -keyout key.pem
+            -out cert.pem
+            -subj "/C=DE/ST=Berlin/L=Berlin/O=The Qt Company GmbH/OU=RnD/CN=localhost/emailAddress=dennis.oberst@qt.io"
+        WORKING_DIRECTORY
+            "${certificates_output_dir}"
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+endif()
+
+
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ${_qt_grpc_backup_prefer_config})
+unset(_qt_grpc_backup_prefer_config)
+
+if(CMAKE_CROSSCOMPILING)
+    find_program(grpc_cpp_plugin grpc_cpp_plugin NO_CACHE)
+elseif(TARGET gRPC::grpc_cpp_plugin)
+    set(grpc_cpp_plugin $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+else()
+    set(grpc_cpp_plugin "")
+endif()
+
+if(NOT grpc_cpp_plugin OR NOT TARGET WrapProtoc::WrapProtoc
+    OR NOT TARGET gRPC::grpc++)
     message(WARNING "Dependencies of Qt GRPC test server not found. Skipping.")
     return()
 endif()
+
+# grpc-c++ has issues when mixing ASan and non-ASan builds.
+# See https://github.com/grpc/grpc/issues/40935.
+# Re-enable once grpc supports ASan or when we build grpc with ASan in CI.
+qt_internal_skip_sanitizer()
 
 set(proto_files "${CMAKE_CURRENT_LIST_DIR}/../../../shared/proto/testservice.proto")
 set(out_dir ${CMAKE_CURRENT_BINARY_DIR})
@@ -32,7 +87,7 @@ add_custom_command(
         --grpc_out "${out_dir}"
         --cpp_out "${out_dir}"
         -I "${CMAKE_CURRENT_LIST_DIR}/../../../shared/proto/"
-        --plugin=protoc-gen-grpc=$<TARGET_FILE:WrapgRPC::WrapgRPCPlugin>
+        --plugin=protoc-gen-grpc=${grpc_cpp_plugin}
         "${proto_files}"
     WORKING_DIRECTORY ${out_dir}
     DEPENDS "${proto_files}" $<TARGET_FILE:WrapProtoc::WrapProtoc>
@@ -51,8 +106,8 @@ target_include_directories(grpc_testserverrunner_gen
 
 target_link_libraries(grpc_testserverrunner_gen
     PRIVATE
-        WrapProtobuf::WrapLibProtobuf
-        WrapgRPC::WrapLibgRPC
+        protobuf::libprotobuf
+        gRPC::grpc++
 )
 
 add_library(grpc_testserverrunner
@@ -70,23 +125,26 @@ target_include_directories(grpc_testserverrunner
 target_link_libraries(grpc_testserverrunner
     PRIVATE
         grpc_testserverrunner_gen
-        WrapgRPC::WrapLibgRPC
+        gRPC::grpc++
         Qt6::Core
 )
 
-set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/assets/cert.pem"
-    PROPERTIES QT_RESOURCE_ALIAS assets/cert.pem)
-set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/assets/key.pem"
-    PROPERTIES QT_RESOURCE_ALIAS assets/key.pem)
+if(EXISTS "${certificates_output_dir}/key.pem" AND
+   EXISTS "${certificates_output_dir}/cert.pem")
+    set_source_files_properties("${certificates_output_dir}/cert.pem"
+        PROPERTIES QT_RESOURCE_ALIAS assets/cert.pem)
+    set_source_files_properties("${certificates_output_dir}/key.pem"
+        PROPERTIES QT_RESOURCE_ALIAS assets/key.pem)
 
-qt_add_resources(grpc_testserverrunner
-    "keys"
-    PREFIX
-        "/"
-    FILES
-        "${CMAKE_CURRENT_LIST_DIR}/assets/cert.pem"
-        "${CMAKE_CURRENT_LIST_DIR}/assets/key.pem"
-)
+    qt_add_resources(grpc_testserverrunner
+        "keys"
+        PREFIX
+            "/"
+        FILES
+            "${certificates_output_dir}/cert.pem"
+            "${certificates_output_dir}/key.pem"
+    )
+endif()
 
 qt_internal_add_executable(grpc_testserver
     SOURCES
@@ -96,3 +154,6 @@ qt_internal_add_executable(grpc_testserver
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
     INSTALL_DIRECTORY "${INSTALL_TESTSDIR}/shared"
 )
+
+# Note the qt_internal_skip_sanitizer() above when removing.
+qt_internal_skip_linking_sanitizer()

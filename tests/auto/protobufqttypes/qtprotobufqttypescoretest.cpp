@@ -2,6 +2,7 @@
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
+#include "qtcoretypesnested.qpb.h"
 #include "qtcoretypes.qpb.h"
 
 #include <qtprotobuftestscommon.h>
@@ -10,6 +11,8 @@
 #include <QObject>
 #include <QtTest/QtTest>
 #include <private/qtenvironmentvariables_p.h>
+
+using namespace Qt::StringLiterals;
 
 constexpr char conversionErrorMessage[] = "Qt Proto Type conversion error.";
 
@@ -39,6 +42,8 @@ private Q_SLOTS:
     void qRect();
     void qRectF();
     void qVersionNumber();
+
+    void nestedQUrlMessageDefined();
 
 private:
     QProtobufSerializer serializer;
@@ -333,6 +338,22 @@ void QtProtobufQtTypesQtCoreTest::qDateTime()
         msg.deserialize(&serializer, QByteArray::fromHex(emptyValue));
         QVERIFY(msg.testField().isNull());
     }
+
+    // rvalue test
+    {
+        QDateTime dateTime = {date, QTime(7, 30, 21, 321), zone};
+        QDateTime dateTimeCopy = dateTime;
+        msg.setTestField(std::move(dateTime));
+        QDateTimeMessage msgCopy = msg;
+        QCOMPARE_EQ(msg.testField(), dateTimeCopy);
+        QCOMPARE_EQ(msg, msgCopy);
+
+        msg.setTestField({ QDate(2011, 3, 14),
+                           QTime(6, 30, 21, 321),
+                           QTimeZone(QTimeZone::UTC) });
+        QCOMPARE_NE(msg.testField(), dateTimeCopy);
+        QCOMPARE_NE(msg, msgCopy);
+    }
 }
 
 void QtProtobufQtTypesQtCoreTest::qSize()
@@ -570,6 +591,14 @@ void QtProtobufQtTypesQtCoreTest::qVersionNumber()
     msg.setTestField(version);
     msg.deserialize(&serializer, QByteArray::fromHex(emptyValue));
     QVERIFY(msg.testField().isNull());
+}
+
+void QtProtobufQtTypesQtCoreTest::nestedQUrlMessageDefined()
+{
+    const QUrl url{u"http://qt.io"_s};
+    NestedQUrlMessage::QUrlMessage msg;
+    msg.setTestField(url);
+    QCOMPARE(msg.testField(), url);
 }
 
 QTEST_MAIN(QtProtobufQtTypesQtCoreTest)

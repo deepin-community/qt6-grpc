@@ -24,7 +24,7 @@ When using CMake as a build tool you should prefer using the
 For build systems other than CMake, adapt the commands described in
 \l{Running manually}.
 
-\note there is no explicit support for building gRPC and Protobuf
+\note there is no explicit support for building \gRPC and Protobuf
 applications using the Qt GRPC module with \e qmake.
 
 \section2 CMake
@@ -67,5 +67,8 @@ options are supported:
     \include qtprotoccommon.qdocinc copy_comments-li
     \include qtprotoccommon.qdocinc generate_package_subfolders-li
     \include qtprotoccommon.qdocinc export_macro-cli-li
+    \include qtprotoccommon.qdocinc header_guard-li
+    \include qtprotoccommon.qdocinc generate_non_final_messages-li
+    \include qtprotoccommon.qdocinc generate_non_final_properties-li
 \endlist
 */

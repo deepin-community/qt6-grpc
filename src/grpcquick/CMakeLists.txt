@@ -14,9 +14,11 @@ qt_internal_add_qml_module(GrpcQuick
         qqmlgrpccalloptions.h qqmlgrpccalloptions.cpp
         qqmlgrpcmetadata_p.h qqmlgrpcmetadata.cpp
         qqmlgrpcfunctionalhandlers.h qqmlgrpcfunctionalhandlers.cpp
+        qtgrpcquicklogging_p.h qtgrpcquicklogging.cpp
         qtqmlgrpcstreamsender.h qtqmlgrpcstreamsender.cpp
     LIBRARIES
         Qt::Core
+        Qt::CorePrivate
         Qt::Grpc
     PUBLIC_LIBRARIES
         Qt::Quick

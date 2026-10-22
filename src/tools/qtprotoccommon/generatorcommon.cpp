@@ -1,6 +1,7 @@
 // Copyright (C) 2022 The Qt Company Ltd.
 // Copyright (C) 2020 Alexey Edelev <semlanik@gmail.com>
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
+// Qt-Security score:critical reason:data-parser
 
 #include "generatorcommon.h"
 #include "options.h"
@@ -13,6 +14,7 @@
 #  include <google/protobuf/descriptor.pb.h>
 #endif
 
+#include <array>
 #include <cassert>
 #include <string_view>
 
@@ -97,7 +99,7 @@ std::string common::buildExportMacro(bool addTrailingSpace)
 std::string common::getNestedNamespace(const Descriptor *type, std::string_view separator)
 {
     assert(type != nullptr);
-    std::string namespaces = type->file()->package();
+    std::string namespaces{ type->file()->package() };
 
     std::string nestingNamespaces;
     const Descriptor *containingType = type->containing_type();
@@ -146,28 +148,25 @@ std::map<std::string, std::string> common::getNestedScopeNamespace(const std::st
 
 TypeMap common::produceQtTypeMap(const Descriptor *type, const Descriptor *scope)
 {
-    std::string namespaces = getFullNamespace(type, "::");
     std::string scopeNamespaces = getScopeNamespace(type, scope);
     std::string qmlPackage = getFullNamespace(type, ".");
 
-    std::string name = type->name();
+    std::string name{ type->name() };
     std::string fullName = name;
     std::string scopeName = name;
 
-    std::string listName = std::string("QList<") + CommonTemplates::RepeatedSuffix() + ">";
-    std::string fullListName = listName;
-    std::string scopeListName = listName;
+    std::string listName = "QList<" + name + ">";
 
     return { { "type", name },
              { "full_type", fullName },
              { "scope_type", scopeName },
              { "list_type", listName },
-             { "full_list_type", fullListName },
-             { "scope_list_type", scopeListName },
+             { "full_list_type", listName },
+             { "scope_list_type", listName },
              { "scope_namespaces", scopeNamespaces },
              { "qml_package", qmlPackage },
              { "property_type", fullName },
-             { "property_list_type", fullListName },
+             { "property_list_type", listName },
              { "getter_type", scopeName },
              { "setter_type", scopeName } };
 }
@@ -177,7 +176,7 @@ TypeMap common::produceOverriddenTypeMap(const Descriptor *type, const Descripto
     std::string namespaces = getFullNamespace(type, "::");
     std::string qmlPackage = getFullNamespace(type, ".");
 
-    std::string name = type->name();
+    std::string name{ type->name() };
     std::string listName;
     if (type->full_name() == "google.protobuf.Any") {
         namespaces = "QtProtobuf";
@@ -191,21 +190,20 @@ TypeMap common::produceOverriddenTypeMap(const Descriptor *type, const Descripto
             getScopeNamespace(namespaces, getFullNamespace(scope, "::"));
     const std::string fullName = name;
     const std::string scopeName = fullName;
-    const std::string fullListName = listName;
-    const std::string scopeListName = listName;
 
     return { { "type", name },
              { "full_type", fullName },
              { "scope_type", scopeName },
              { "list_type", listName },
-             { "full_list_type", fullListName },
-             { "scope_list_type", scopeListName },
+             { "full_list_type", listName },
+             { "scope_list_type", listName },
              { "scope_namespaces", scopeNamespaces },
              { "qml_package", qmlPackage },
              { "property_type", fullName },
-             { "property_list_type", fullListName },
+             { "property_list_type", listName },
              { "getter_type", scopeName },
-             { "setter_type", scopeName } };
+             { "setter_type", scopeName },
+             { "initializer", "{}" } };
 }
 
 TypeMap common::produceMessageTypeMap(const Descriptor *type, const Descriptor *scope)
@@ -221,10 +219,9 @@ TypeMap common::produceMessageTypeMap(const Descriptor *type, const Descriptor *
     std::string fullName = namespaces.empty() ? name : (namespaces + "::" + name);
     std::string scopeName = scopeNamespaces.empty() ? name : (scopeNamespaces + "::" + name);
 
-    std::string listName = name + CommonTemplates::RepeatedSuffix();
-    std::string fullListName = namespaces.empty() ? listName : (namespaces + "::" + listName);
-    std::string scopeListName =
-            scopeNamespaces.empty() ? listName : (scopeNamespaces + "::" + listName);
+    std::string listName = "QList<" + name + ">";
+    std::string fullListName = namespaces.empty() ? listName : "QList<" + fullName + ">";
+    std::string scopeListName = scopeNamespaces.empty() ? listName : "QList<" + scopeName + ">";
 
     std::string exportMacro = common::buildExportMacro();
 
@@ -271,10 +268,9 @@ TypeMap common::produceEnumTypeMap(const EnumDescriptor *type, const Descriptor 
     std::string fullName = namespaces.empty() ? name : (namespaces + "::" + name);
     std::string scopeName = scopeNamespaces.empty() ? name : (scopeNamespaces + "::" + name);
 
-    std::string listName = name + CommonTemplates::RepeatedSuffix();
-    std::string fullListName = namespaces.empty() ? listName : (namespaces + "::" + listName);
-    std::string scopeListName =
-            scopeNamespaces.empty() ? listName : (scopeNamespaces + "::" + listName);
+    std::string listName = "QList<" + name + '>';
+    std::string fullListName = namespaces.empty() ? listName : "QList<" + fullName + '>';
+    std::string scopeListName = scopeNamespaces.empty() ? listName : "QList<" + scopeName + '>';
 
     // Note: For local enum classes it's impossible to use class name space in Q_PROPERTY
     // declaration. So please avoid addition of namespaces in line bellow
@@ -344,18 +340,15 @@ TypeMap common::produceSimpleTypeMap(FieldDescriptor::Type type)
 
 MethodMap common::produceMethodMap(const MethodDescriptor *method, const std::string &scope)
 {
-    std::string inputTypeName = method->input_type()->full_name();
-    std::string outputTypeName = method->output_type()->full_name();
-    std::string methodName = method->name();
-    std::string methodNameUpper = method->name();
+    std::string inputTypeName{ utils::replace(method->input_type()->full_name(), ".", "::") };
+    std::string outputTypeName{ utils::replace(method->output_type()->full_name(), ".", "::")  };
+    std::string methodName{ method->name() };
+    std::string methodNameUpper{ method->name() };
     methodNameUpper[0] = static_cast<char>(utils::toAsciiUpper(methodNameUpper[0]));
-    inputTypeName = utils::replace(inputTypeName, ".", "::");
-    outputTypeName = utils::replace(outputTypeName, ".", "::");
 
-    std::string senderName = methodNameUpper;
-    senderName += "Sender";
+    std::string senderName = std::move(methodNameUpper) + "Sender";
 
-    std::string serviceName = method->service()->name();
+    std::string serviceName{ method->service()->name() };
 
     //Make sure that we don't clash the same stream names from different services
     std::string senderQmlName = serviceName;
@@ -393,9 +386,9 @@ MethodMap common::produceMethodMap(const MethodDescriptor *method, const std::st
 
 TypeMap common::produceServiceTypeMap(const ServiceDescriptor *service, const Descriptor *scope)
 {
-    const std::string name = "Service";
-    const std::string fullName = "Service";
-    const std::string scopeName = service->name();
+    const std::string name{ "Service" };
+    const std::string fullName{ "Service" };
+    const std::string scopeName{ service->name() };
     static const std::string exportMacro = common::buildExportMacro();
 
     const std::string namespaces = getFullNamespace(service, "::");
@@ -413,16 +406,16 @@ TypeMap common::produceServiceTypeMap(const ServiceDescriptor *service, const De
 
 TypeMap common::produceClientTypeMap(const ServiceDescriptor *service, const Descriptor *scope)
 {
-    const std::string name = "Client";
-    const std::string fullName = "Client";
-    const std::string scopeName = service->name();
+    const std::string name{ "Client" };
+    const std::string fullName{ "Client" };
+    const std::string scopeName{ service->name() };
     static const std::string exportMacro = common::buildExportMacro();
 
     const std::string namespaces = getFullNamespace(service, "::");
     const std::string scopeNamespaces = getScopeNamespace(namespaces,
                                                           getFullNamespace(scope, "::"));
 
-    const std::string serviceName =  service->full_name();
+    const std::string serviceName{ service->full_name() };
     return { { "classname", name },
              { "classname_low_case", utils::deCapitalizeAsciiName(name) },
              { "full_type", fullName },
@@ -435,9 +428,9 @@ TypeMap common::produceClientTypeMap(const ServiceDescriptor *service, const Des
 
 TypeMap common::produceQmlClientTypeMap(const ServiceDescriptor *service, const Descriptor *scope)
 {
-    const std::string name = "QmlClient";
-    const std::string fullName = "QmlClient";
-    const std::string serviceName = service->name();
+    const std::string name{ "QmlClient" };
+    const std::string fullName{ "QmlClient" };
+    const std::string serviceName{ service->name() };
     static const std::string exportMacro = common::buildExportMacro();
 
     const std::string namespaces = getFullNamespace(service, "::");
@@ -472,6 +465,12 @@ bool common::isPureMessage(const FieldDescriptor *field)
 {
     return field->type() == FieldDescriptor::TYPE_MESSAGE && !field->is_map()
             && !field->is_repeated() && !common::isQtType(field) && !common::isOverridden(field);
+}
+
+bool common::isRepeatedMessage(const FieldDescriptor *field)
+{
+    return field->type() == FieldDescriptor::TYPE_MESSAGE
+            && !field->is_map() && field->is_repeated();
 }
 
 void common::iterateMessageFields(const Descriptor *message, const IterateMessageLogic &callback)
@@ -532,12 +531,13 @@ TypeMap common::produceTypeMap(const FieldDescriptor *field, const Descriptor *s
 PropertyMap common::producePropertyMap(const OneofDescriptor *oneof, const Descriptor *scope)
 {
     assert(oneof != nullptr);
+    assert(scope != nullptr);
 
     PropertyMap propertyMap;
     propertyMap["optional_property_name"] = qualifiedCppName(qualifiedQmlName(oneof->name()));
     propertyMap["optional_property_name_cap"] = utils::capitalizeAsciiName(oneof->name());
     auto scopeTypeMap = produceMessageTypeMap(scope, nullptr);
-    propertyMap["classname"] = scope != nullptr ? scopeTypeMap["classname"] : "";
+    propertyMap["classname"] = scopeTypeMap["classname"];
     propertyMap["dataclassname"] = propertyMap["classname"] + CommonTemplates::DataClassName();
     propertyMap["type"] = propertyMap["optional_property_name_cap"] + "Fields";
     propertyMap["export_macro"] = common::buildExportMacro();
@@ -548,6 +548,7 @@ PropertyMap common::producePropertyMap(const OneofDescriptor *oneof, const Descr
 PropertyMap common::producePropertyMap(const FieldDescriptor *field, const Descriptor *scope)
 {
     assert(field != nullptr);
+    assert(scope != nullptr);
 
     PropertyMap propertyMap = produceTypeMap(field, scope);
 
@@ -566,13 +567,16 @@ PropertyMap common::producePropertyMap(const FieldDescriptor *field, const Descr
 
     propertyMap["property_name"] = propertyName;
     propertyMap["property_name_cap"] = propertyNameCap;
+    propertyMap["mutable_getter_name"] = CommonTemplates::MutableGetterPrefix();
+    propertyMap["mutable_getter_name"] += propertyNameCap;
+
     propertyMap["scriptable"] = scriptable;
     propertyMap["export_macro"] = common::buildExportMacro();
 
     auto scopeTypeMap = produceMessageTypeMap(scope, nullptr);
     propertyMap["key_type"] = "";
     propertyMap["value_type"] = "";
-    propertyMap["classname"] = scope != nullptr ? scopeTypeMap["classname"] : "";
+    propertyMap["classname"] = scopeTypeMap["classname"];
     propertyMap["dataclassname"] = propertyMap["classname"] + CommonTemplates::DataClassName();
     propertyMap["number"] = std::to_string(field->number());
 
@@ -601,12 +605,13 @@ PropertyMap common::producePropertyMap(const FieldDescriptor *field, const Descr
     return propertyMap;
 }
 
-std::string common::qualifiedCppName(const std::string &name)
+std::string common::qualifiedCppName(std::string_view name)
 {
-    return utils::contains(CommonTemplates::ListOfCppExceptions(), name) ? name + "_" : name;
+    return utils::contains(CommonTemplates::ListOfCppExceptions(), name) ? std::string{ name } + "_"
+                                                                         : std::string{ name };
 }
 
-std::string common::qualifiedQmlName(const std::string &name)
+std::string common::qualifiedQmlName(std::string_view name)
 {
     std::string fieldName(name);
     const std::vector<std::string> &searchExceptions = CommonTemplates::ListOfQmlExceptions();
@@ -769,7 +774,7 @@ std::string common::collectFieldFlags(const FieldDescriptor *field)
     if (field->type() != FieldDescriptor::TYPE_STRING
         && field->type() != FieldDescriptor::TYPE_BYTES
         && field->type() != FieldDescriptor::TYPE_MESSAGE
-        && field->type() != FieldDescriptor::TYPE_ENUM && !field->is_map() && field->is_repeated()
+        && !field->is_map() && field->is_repeated()
         && !field->is_packed()) {
         writeFlag("NonPacked");
     }
@@ -803,9 +808,9 @@ std::string common::collectFieldFlags(const FieldDescriptor *field)
     return flags;
 }
 
-bool common::isExtraNamespacedFile(const std::string &file)
+bool common::isExtraNamespacedFile(std::string_view file)
 {
-    return m_extraNamespacedFiles.find(file) != m_extraNamespacedFiles.end();
+    return m_extraNamespacedFiles.find(std::string{ file }) != m_extraNamespacedFiles.end();
 }
 
 void common::setExtraNamespacedFiles(const std::set<std::string> &files)
@@ -835,3 +840,14 @@ std::string common::generateRelativeFilePath(const FileDescriptor *file, const s
     return outFileBasename;
 }
 
+bool common::hasCustomJsonCoversion(const Descriptor *message)
+{
+    static constexpr std::array<std::string_view, 11> TypesSupportingOptionalCoversion{
+        "Timestamp",   "Duration",   "BoolValue",   "Int32Value", "Int64Value",  "UInt32Value",
+        "UInt64Value", "FloatValue", "DoubleValue", "BytesValue", "StringValue",
+    };
+
+    return std::find(TypesSupportingOptionalCoversion.begin(),
+                     TypesSupportingOptionalCoversion.end(), std::string_view(message->name()))
+        != TypesSupportingOptionalCoversion.end();
+}

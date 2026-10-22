@@ -69,12 +69,22 @@
     ProtobufQtGuiTypes package, and uses them directly. This gives
     you the flexibility to use these types without additional conversion.
 
+    In CMake, you can extract the proto include path from the library using the
+    \c{QT_PROTO_INCLUDES} target property:
+    \badcode
+        qt_add_protobuf(MyProtoLib
+            PROTO_FILES
+                MyQtGuiTypesUsage.proto
+            PROTO_INCLUDES
+                $<TARGET_PROPERTY:Qt::ProtobufQtGuiTypes,QT_PROTO_INCLUDES>
+        )
+    \endcode
+
     \section2 QImage serialization
     The ProtobufQtGuiTypes library provides the possibility to work with the
     QImage class. Usually, the library converts all QImage objects in
-    to \c PNG format. But if the QImage was created using
-    \l {https://doc.qt.io/qt-6/qimage.html#Format-enum} a
-    {floating point formats}, then conversion to \c PNG will lead
+    to \c PNG format. But if the QImage was created using one of the floating
+    point formats of \l {QImage::Format}, then conversion to \c PNG will lead
     to data loss. To prevent data loss, the library automatically converts
     the image file to \c TIFF format, if it is supported by the system,
     otherwise converts to \c PNG.

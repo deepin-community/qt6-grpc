@@ -28,7 +28,7 @@ function(_qt_internal_grpc_preparse_proto_files type
         _qt_internal_preparse_proto_file_common(result proto_package "${f}" "service")
         if(NOT result)
             message(NOTICE "No services found in ${f}. Skipping.")
-            return()
+            continue()
         endif()
 
         get_filename_component(proto_file_base_dir "${f}" DIRECTORY)
@@ -117,6 +117,12 @@ function(qt6_add_grpc target type)
         PROTO_FILES
             ${arg_PROTO_FILES}
     )
+
+    if(NOT proto_files AND arg_PROTO_FILES)
+        _qt_internal_protobuf_missing_definitions_warning(${target} grpc "${arg_PROTO_FILES}")
+        return()
+    endif()
+
     if(arg_PROTO_INCLUDES)
         list(APPEND proto_includes ${arg_PROTO_INCLUDES})
     endif()
@@ -195,6 +201,12 @@ function(qt6_add_grpc target type)
         ${QT_CMAKE_EXPORT_NAMESPACE}::Grpc
     )
     if(arg_QML)
+        if(NOT TARGET ${QT_CMAKE_EXPORT_NAMESPACE}::GrpcQuick)
+            message(FATAL_ERROR "QML option of the qt_add_grpc command requires"
+                " ${QT_CMAKE_EXPORT_NAMESPACE}::GrpcQuick target. Please make sure that you"
+                " have the respective Qt component found by adding it to the find_package call:"
+                "   find_package(${QT_CMAKE_EXPORT_NAMESPACE} COMPONENTS GrpcQuick)")
+        endif()
         target_link_libraries(${target} PRIVATE
             ${QT_CMAKE_EXPORT_NAMESPACE}::GrpcQuick)
     endif()

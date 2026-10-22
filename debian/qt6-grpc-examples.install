@@ -1,7 +1,12 @@
-usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/grpcchatclient
-usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/grpcchatserver
-usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/magic8ball/SimpleGrpcServer
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/qtgrpc_chat_client
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/chat/qtgrpc_chat_server
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/clientguide/clientguide_client
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/clientguide/clientguide_server
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/magic8ball/magic8ball
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/magic8ball/magic8ball_server
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/vehicle/libvehiclelib.so
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/vehicle/vehicle_client
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/grpc/vehicle/vehicle_server
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/libprotobuf_sensors.so
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/protobuf_sensor_emulator
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/protobuf/sensors/protobuf_sensors_client

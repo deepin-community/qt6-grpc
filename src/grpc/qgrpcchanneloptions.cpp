@@ -1,9 +1,12 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
+#include <QtGrpc/private/qgrpccommonoptions_p.h>
 #include <QtGrpc/qgrpcchanneloptions.h>
 #include <QtGrpc/qgrpcserializationformat.h>
 #include <QtGrpc/qtgrpcnamespace.h>
+
+#include <QtNetwork/private/qdecompresshelper_p.h>
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qdebug.h>
@@ -18,18 +21,45 @@ using namespace QtGrpc;
     \class QGrpcChannelOptions
     \inmodule QtGrpc
     \since 6.6
-    \brief The QGrpcChannelOptions is an storage class used to set additional channel options.
+    \compares equality
+    \brief The QGrpcChannelOptions class offers various options for fine-tuning
+    a gRPC channel.
 
-    QGrpcChannelOptions provides a set of functions to set and access the channel and default call
-    options that are used by gRPC channels to communicate with the services.
+    QGrpcChannelOptions lets you customize a \gRPC channel. Some options apply
+    to all remote procedure calls (RPCs) that operate on the associated
+    channel, which is used to communicate with services.
+
+    Override options for specific RPCs with QGrpcCallOptions.
+
+    \code
+        QGrpcChannelOptions channelOpts;
+        // Apply common metadata to every RPC
+        channelOpts.setMetadata({
+            { "header" , "value1" },
+            { "header" , "value2" },
+        });
+        const auto &md = channelOpts.metadata(QtGrpc::MultiValue);
+        qDebug() << "Channel Metadata: " << md;
+
+        // Apply a 2-second deadline to every RPC
+        channelOpts.setDeadlineTimeout(2s);
+        qDebug() << "Channel timeout: " << channelOpts.deadlineTimeout();
+
+        // Configure SSL/TLS configuration
+        channelOpts.setSslConfiguration(QSslConfiguration());
+    \endcode
+
+
+    \note It is up to the channel's implementation to determine the specifics
+    of these options.
 */
 
-class QGrpcChannelOptionsPrivate : public QSharedData
+class QGrpcChannelOptionsPrivate : public QGrpcCommonOptions
 {
 public:
-    std::optional<std::chrono::milliseconds> timeout;
-    QHash<QByteArray, QByteArray> metadata;
     QGrpcSerializationFormat serializationFormat;
+    CompressionAlgorithms
+        acceptedCompressionAlgorithms = QGrpcChannelOptions::supportedCompressionAlgorithms();
 #if QT_CONFIG(ssl)
     std::optional<QSslConfiguration> sslConfiguration;
 #endif
@@ -38,56 +68,55 @@ public:
 QT_DEFINE_QESDP_SPECIALIZATION_DTOR(QGrpcChannelOptionsPrivate)
 
 /*!
-    Constructs a QGrpcChannelOptions.
+    Default-constructs an empty QGrpcChannelOptions.
 */
 QGrpcChannelOptions::QGrpcChannelOptions() : d_ptr(new QGrpcChannelOptionsPrivate())
 {
 }
 
 /*!
-    Construct a copy of QGrpcChannelOptions with \a other object.
+    Copy-constructs a QGrpcChannelOptions from \a other.
 */
 QGrpcChannelOptions::QGrpcChannelOptions(const QGrpcChannelOptions &other) = default;
 
 /*!
-    Assigns \a other to this QGrpcChannelOptions and returns a reference to this
-    QGrpcChannelOptions.
+    Assigns \a other to this QGrpcChannelOptions and returns a reference to the
+    updated object.
 */
 QGrpcChannelOptions &QGrpcChannelOptions::operator=(const QGrpcChannelOptions &other) = default;
 
 /*!
-    \fn QGrpcChannelOptions::QGrpcChannelOptions(QGrpcChannelOptions &&other) noexcept
+    \fn QGrpcChannelOptions::QGrpcChannelOptions(QGrpcChannelOptions &&other)
+
     Move-constructs a new QGrpcChannelOptions from \a other.
 
-    \note The moved-from object \a other is placed in a partially-formed state,
-    in which the only valid operations are destruction and assignment of a new
-    value.
+    \include qtgrpc-shared.qdocinc move-note-desc
 */
 
 /*!
-    \fn QGrpcChannelOptions &QGrpcChannelOptions::operator=(QGrpcChannelOptions &&other) noexcept
-    Move-assigns \a other to this QGrpcChannelOptions instance and returns a
-    reference to it.
+    \fn QGrpcChannelOptions &QGrpcChannelOptions::operator=(QGrpcChannelOptions &&other)
 
-    \note The moved-from object \a other is placed in a partially-formed state,
-    in which the only valid operations are destruction and assignment of a new
-    value.
+    Move-assigns \a other to this QGrpcChannelOptions and returns a reference
+    to the updated object.
+
+    \include qtgrpc-shared.qdocinc move-note-desc
 */
 
 /*!
     \since 6.8
-    \fn void QGrpcChannelOptions::swap(QGrpcChannelOptions &other) noexcept
-    Swaps this instance with \a other. This operation is very fast and never fails.
+    \fn void QGrpcChannelOptions::swap(QGrpcChannelOptions &other)
+
+    \include qtgrpc-shared.qdocinc swap-desc
 */
 
 /*!
-    Destroys the QGrpcChannelOptions object.
+    Destroys the QGrpcChannelOptions.
 */
 QGrpcChannelOptions::~QGrpcChannelOptions() = default;
 
 /*!
     \since 6.8
-    Constructs a new QVariant object from this QGrpcChannelOptions.
+    \include qtgrpc-shared.qdocinc qvariant-desc
 */
 QGrpcChannelOptions::operator QVariant() const
 {
@@ -95,54 +124,337 @@ QGrpcChannelOptions::operator QVariant() const
 }
 
 /*!
-    Sets deadline value with \a timeout and returns updated QGrpcChannelOptions object.
+    \include qgrpccommonoptions.cpp set-deadline-timeout
+
+//! [channel-note]
+    \note Setting this field applies to all RPCs that operate on the channel,
+    except those overriden by
+//! [channel-note]
+    \l{QGrpcCallOptions::setDeadlineTimeout()}
+
+    \sa deadlineTimeout()
 */
 QGrpcChannelOptions &QGrpcChannelOptions::setDeadlineTimeout(std::chrono::milliseconds timeout)
 {
-    if (d_ptr->timeout == timeout)
+    if (d_ptr->deadlineTimeout() == timeout)
         return *this;
     d_ptr.detach();
     Q_D(QGrpcChannelOptions);
-    d->timeout = timeout;
+    d->setDeadlineTimeout(timeout);
     return *this;
+}
+
+#if QT_DEPRECATED_SINCE(6, 13)
+
+/*!
+    \fn const QHash<QByteArray, QByteArray> &QGrpcChannelOptions::metadata() const &
+    \fn QHash<QByteArray, QByteArray> QGrpcChannelOptions::metadata() &&
+    \deprecated [6.13] Use \l{metadata(QtGrpc::MultiValue_t)}{metadata(QtGrpc::MultiValue)} instead.
+
+    \include qgrpccommonoptions.cpp metadata
+
+    \sa metadata(QtGrpc::MultiValue_t), setMetadata()
+*/
+const QHash<QByteArray, QByteArray> &QGrpcChannelOptions::metadata() const & noexcept
+{
+    Q_D(const QGrpcChannelOptions);
+    return d->metadata();
+}
+QHash<QByteArray, QByteArray> QGrpcChannelOptions::metadata() &&
+{
+    Q_D(QGrpcChannelOptions);
+    if (d->ref.loadRelaxed() != 1) // return copy if shared
+        return d->metadata();
+    return std::move(*d_ptr).metadata();
 }
 
 /*!
     \fn QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(const QHash<QByteArray, QByteArray> &metadata)
     \fn QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
+    \deprecated [6.13] Use the QMultiHash overload instead.
 
-    Sets \a metadata for all calls and returns updated QGrpcChannelOptions object.
+    \include qgrpccommonoptions.cpp set-metadata
 
-    For HTTP2-based channels, \a metadata is converted into HTTP/2 headers, that
-    added to each HTTP/2 request.
+//! [merge-md-note]
+    \note This metadata is included in every RPC made through the channel.
+    Channel metadata is \b{merged} with any call-specific metadata when the RPC
+    starts — see
+//! [merge-md-note]
+    \l{QGrpcCallOptions::setMetadata(const QMultiHash<QByteArray,
+    QByteArray>&)}{QGrpcCallOptions::setMetadata(QMultiHash)}
+
+    \sa metadata()
 */
 QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(const QHash<QByteArray, QByteArray> &metadata)
 {
-    if (d_ptr->metadata == metadata)
+    if (d_ptr->metadata() == metadata)
         return *this;
     d_ptr.detach();
     Q_D(QGrpcChannelOptions);
-    d->metadata = metadata;
+    d->setMetadata(metadata);
+    return *this;
+}
+QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
+{
+    if (d_ptr->metadata() == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->setMetadata(std::move(metadata));
     return *this;
 }
 
-QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(QHash<QByteArray, QByteArray> &&metadata)
+#endif // QT_DEPRECATED_SINCE(6, 13)
+
+/*!
+    \since 6.10
+    \fn const QMultiHash<QByteArray, QByteArray> &QGrpcChannelOptions::metadata(QtGrpc::MultiValue_t) const &
+    \fn QMultiHash<QByteArray, QByteArray> QGrpcChannelOptions::metadata(QtGrpc::MultiValue_t) &&
+
+    \include qgrpccommonoptions.cpp metadata-multi
+
+    \sa {setMetadata(const QMultiHash<QByteArray, QByteArray>&)}{setMetadata}
+*/
+const QMultiHash<QByteArray, QByteArray> &
+QGrpcChannelOptions::metadata(QtGrpc::MultiValue_t tag) const & noexcept
 {
-    if (d_ptr->metadata == metadata)
+    Q_D(const QGrpcChannelOptions);
+    return d->metadata(tag);
+}
+
+QMultiHash<QByteArray, QByteArray>
+QGrpcChannelOptions::metadata(QtGrpc::MultiValue_t tag) &&
+{
+    Q_D(QGrpcChannelOptions);
+    if (d->ref.loadRelaxed() != 1)
+        return d->metadata(tag);
+    return std::move(*d_ptr).metadata(tag);
+}
+
+/*!
+    \since 6.10
+    \fn QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(const QMultiHash<QByteArray, QByteArray> &metadata)
+    \fn QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(QMultiHash<QByteArray, QByteArray> &&metadata)
+    \fn QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(std::initializer_list<std::pair<QByteArray, QByteArray>> list)
+
+    \include qgrpccommonoptions.cpp set-metadata-multi
+
+    \include qgrpcchanneloptions.cpp merge-md-note
+    \l{QGrpcCallOptions::setMetadata(const QMultiHash<QByteArray,
+    QByteArray>&)}{QGrpcCallOptions::setMetadata(QMultiHash)}
+
+    \sa metadata(QtGrpc::MultiValue_t)
+*/
+QGrpcChannelOptions &
+QGrpcChannelOptions::setMetadata(const QMultiHash<QByteArray, QByteArray> &metadata)
+{
+    if (d_ptr->metadata(QtGrpc::MultiValue) == metadata)
         return *this;
     d_ptr.detach();
     Q_D(QGrpcChannelOptions);
-    d->metadata = std::move(metadata);
+    d->setMetadata(metadata);
+    return *this;
+}
+QGrpcChannelOptions &QGrpcChannelOptions::setMetadata(QMultiHash<QByteArray, QByteArray> &&metadata)
+{
+    if (d_ptr->metadata(QtGrpc::MultiValue) == metadata)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->setMetadata(std::move(metadata));
+    return *this;
+}
+QGrpcChannelOptions &
+QGrpcChannelOptions::setMetadata(std::initializer_list<std::pair<QByteArray, QByteArray>> list)
+{
+    return setMetadata(QMultiHash<QByteArray, QByteArray>(list));
+}
+
+/*!
+    \include qgrpccommonoptions.cpp add-metadata
+
+    \include qgrpcchanneloptions.cpp merge-md-note
+    \l{QGrpcCallOptions::addMetadata()}
+*/
+QGrpcChannelOptions &QGrpcChannelOptions::addMetadata(QByteArrayView key, QByteArrayView value)
+{
+    if (d_ptr->containsMetadata(key, value))
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->addMetadata(key.toByteArray(), value.toByteArray());
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp filterServerMetadata
+    \sa QGrpcCallOptions::filterServerMetadata()
+*/
+std::optional<bool> QGrpcChannelOptions::filterServerMetadata() const noexcept
+{
+    Q_D(const QGrpcChannelOptions);
+    return d->filterServerMetadata();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setFilterServerMetadata
+
+    \include qgrpcchanneloptions.cpp channel-note
+    \l{QGrpcCallOptions::filterServerMetadata}
+
+    \sa QGrpcCallOptions::setFilterServerMetadata()
+*/
+QGrpcChannelOptions &QGrpcChannelOptions::setFilterServerMetadata(bool value)
+{
+    if (filterServerMetadata() == value)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->setFilterServerMetadata(value);
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp maximumReceiveMessageSize
+    \sa QGrpcCallOptions::maximumReceiveMessageSize()
+*/
+std::optional<quint64> QGrpcChannelOptions::maximumReceiveMessageSize() const
+{
+    Q_D(const QGrpcChannelOptions);
+    return d->maximumReceiveMessageSize();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setMaximumReceiveMessageSize
+
+    \include qgrpcchanneloptions.cpp channel-note
+    \l{QGrpcCallOptions::setMaximumReceiveMessageSize()}
+
+    \sa QGrpcCallOptions::setMaximumReceiveMessageSize()
+*/
+QGrpcChannelOptions &QGrpcChannelOptions::setMaximumReceiveMessageSize(quint64 size)
+{
+    if (d_ptr->maximumReceiveMessageSize() == size)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->setMaximumReceiveMessageSize(size);
+    return *this;
+}
+
+/*!
+    \include qgrpccommonoptions.cpp requestCompression
+    \sa QGrpcCallOptions::requestCompression()
+*/
+std::optional<QtGrpc::CompressionAlgorithm> QGrpcChannelOptions::requestCompression() const
+{
+    Q_D(const QGrpcChannelOptions);
+    return d->requestCompression();
+}
+
+/*!
+    \include qgrpccommonoptions.cpp setRequestCompression
+
+    \include qgrpcchanneloptions.cpp channel-note
+    \l{QGrpcCallOptions::setRequestCompression()}
+
+    \sa QGrpcCallOptions::setRequestCompression()
+*/
+QGrpcChannelOptions &
+QGrpcChannelOptions::setRequestCompression(QtGrpc::CompressionAlgorithm algorithm)
+{
+    if (d_ptr->requestCompression() == algorithm)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->setRequestCompression(algorithm);
+    return *this;
+}
+
+/*!
+    \since 6.12
+
+    Returns the compression algorithms that the current Qt build can
+    negotiate. \l{QtGrpc::CompressionAlgorithm::}{Identity} is always present
+    because the \gRPC specification mandates uncompressed messages.
+    \l{QtGrpc::CompressionAlgorithm::}{Deflate} and
+    \l{QtGrpc::CompressionAlgorithm::}{Gzip} are always supported.
+
+    \sa acceptedCompressionAlgorithms(), setAcceptedCompressionAlgorithms()
+*/
+CompressionAlgorithms QGrpcChannelOptions::supportedCompressionAlgorithms() noexcept
+{
+    CompressionAlgorithms supported = CompressionAlgorithm::Identity;
+    if (QDecompressHelper::isSupportedEncoding("deflate"))
+        supported |= CompressionAlgorithm::Deflate;
+    if (QDecompressHelper::isSupportedEncoding("gzip"))
+        supported |= CompressionAlgorithm::Gzip;
+    return supported;
+}
+
+/*!
+    \since 6.12
+
+    Returns the compression algorithms that this channel is willing to accept
+    from the server. The set always contains
+    \l{QtGrpc::CompressionAlgorithm::}{Identity} because the \gRPC specification
+    mandates that uncompressed messages are accepted.
+
+    The value is used to build the \c{grpc-accept-encoding} request header.
+    If the server responds with a compression algorithm that is not in this
+    set, the call is finished with a \l{QtGrpc::StatusCode::}{Unimplemented}
+    status code.
+
+    By default, this is \l{supportedCompressionAlgorithms()}: every algorithm
+    the current Qt build can negotiate is advertised.
+
+    \sa setAcceptedCompressionAlgorithms(), supportedCompressionAlgorithms()
+*/
+QtGrpc::CompressionAlgorithms QGrpcChannelOptions::acceptedCompressionAlgorithms() const
+{
+    Q_D(const QGrpcChannelOptions);
+    return d->acceptedCompressionAlgorithms;
+}
+
+/*!
+    \since 6.12
+
+    Sets the accepted compression \a algorithms and returns a reference to the
+    updated object.
+
+    \l{QtGrpc::CompressionAlgorithm::}{Identity} is always added implicitly,
+    because the gRPC specification requires clients to accept uncompressed
+    messages.
+
+    If \c{{QtGrpc::CompressionAlgorithm::Identity}} is the only accepted
+    algorithm, compressed responses are refused. Adding additional flags allows
+    the server to respond using those compression algorithms.
+
+    Only algorithms supported by this Qt build and included in \a algorithms
+    are advertised to the server as accepted response compression methods.
+    Flags that are not present in \l{supportedCompressionAlgorithms()} are
+    silently discarded.
+
+    \sa acceptedCompressionAlgorithms(), supportedCompressionAlgorithms()
+*/
+QGrpcChannelOptions &
+QGrpcChannelOptions::setAcceptedCompressionAlgorithms(QtGrpc::CompressionAlgorithms algorithms)
+{
+    algorithms &= supportedCompressionAlgorithms();
+    algorithms.setFlag(CompressionAlgorithm::Identity);
+    if (d_ptr->acceptedCompressionAlgorithms == algorithms)
+        return *this;
+    d_ptr.detach();
+    Q_D(QGrpcChannelOptions);
+    d->acceptedCompressionAlgorithms = algorithms;
     return *this;
 }
 
 /*!
     \since 6.8
-    Sets the serialization \a format in the channel and returns updated
-    QGrpcChannelOptions object.
 
-    The serialization \a format should be considered in \l QAbstractGrpcChannel
-    implementations.
+    Sets the serialization \a format for the channel and returns a reference to
+    the updated object.
 */
 QGrpcChannelOptions &
 QGrpcChannelOptions::setSerializationFormat(const QGrpcSerializationFormat &format)
@@ -156,44 +468,24 @@ QGrpcChannelOptions::setSerializationFormat(const QGrpcSerializationFormat &form
 }
 
 /*!
-    Returns deadline value for setting up the channel.
+    Returns the timeout duration that is used to calculate the deadline for the
+    channel.
 
-    Deadline value controls the maximum execution time of any call or stream
-    executed on the channel.
-
-    If value was not set returns empty std::optional.
+    If this field is unset, returns an empty \c {std::optional}.
 */
 std::optional<std::chrono::milliseconds> QGrpcChannelOptions::deadlineTimeout() const noexcept
 {
     Q_D(const QGrpcChannelOptions);
-    return d->timeout;
-}
-
-/*!
-    \fn const QHash<QByteArray, QByteArray> &QGrpcChannelOptions::metadata() const & noexcept
-    \fn QHash<QByteArray, QByteArray> QGrpcChannelOptions::metadata() && noexcept
-
-    Returns metadata used for every call on the channel.
-
-    If value was not set returns empty QHash<QByteArray, QByteArray>.
-*/
-const QHash<QByteArray, QByteArray> &QGrpcChannelOptions::metadata() const & noexcept
-{
-    Q_D(const QGrpcChannelOptions);
-    return d->metadata;
-}
-
-QHash<QByteArray, QByteArray> QGrpcChannelOptions::metadata() &&
-{
-    Q_D(QGrpcChannelOptions);
-    if (d->ref.loadRelaxed() != 1) // return copy if shared
-        return { d->metadata };
-    return std::move(d->metadata);
+    return d->deadlineTimeout();
 }
 
 /*!
     \since 6.8
-    Returns the serialization format used in \l QAbstractGrpcChannel implementations.
+
+    Returns the serialization format used by the channel.
+
+    If this field is unset, returns a \l {QtGrpc::SerializationFormat::}
+    {Default} constructed serialization format.
  */
 QGrpcSerializationFormat QGrpcChannelOptions::serializationFormat() const
 {
@@ -203,7 +495,8 @@ QGrpcSerializationFormat QGrpcChannelOptions::serializationFormat() const
 
 #if QT_CONFIG(ssl)
 /*!
-    Sets SSL configuration with \a sslConfiguration and returns updated QGrpcChannelOptions object.
+    Sets the \a sslConfiguration for the channel and returns a reference to the
+    updated object.
 */
 QGrpcChannelOptions &
 QGrpcChannelOptions::setSslConfiguration(const QSslConfiguration &sslConfiguration)
@@ -217,9 +510,9 @@ QGrpcChannelOptions::setSslConfiguration(const QSslConfiguration &sslConfigurati
 }
 
 /*!
-    Returns SSL configuration for the channel.
+    Returns the SSL configuration for the channel.
 
-    If value was not set returns empty std::optional.
+    If this field is unset, returns an empty \c {std::optional}.
 */
 std::optional<QSslConfiguration> QGrpcChannelOptions::sslConfiguration() const
 {
@@ -228,18 +521,61 @@ std::optional<QSslConfiguration> QGrpcChannelOptions::sslConfiguration() const
 }
 #endif
 
+/*
+//! [compares]
+    Returns \c true if the \l{acceptedCompressionAlgorithms},
+    \l{deadlineTimeout}, \l{filterServerMetadata},
+    \l{maximumReceiveMessageSize}, \l{metadata(QtGrpc::MultiValue_t)},
+    \l{requestCompression}, \l{serializationFormat} and \l{sslConfiguration}
+    in \a lhs and \a rhs are
+//! [compares]
+*/
+bool comparesEqual(const QGrpcChannelOptions &lhs, const QGrpcChannelOptions &rhs)
+{
+    return lhs.acceptedCompressionAlgorithms() == rhs.acceptedCompressionAlgorithms()
+        && lhs.deadlineTimeout() == rhs.deadlineTimeout()
+        && lhs.filterServerMetadata() == rhs.filterServerMetadata()
+        && lhs.maximumReceiveMessageSize() == rhs.maximumReceiveMessageSize()
+        && lhs.metadata(QtGrpc::MultiValue) == rhs.metadata(QtGrpc::MultiValue)
+        && lhs.requestCompression() == rhs.requestCompression()
+        && lhs.serializationFormat() == rhs.serializationFormat()
+#if QT_CONFIG(ssl)
+        && lhs.sslConfiguration() == rhs.sslConfiguration()
+#endif
+        ;
+}
+
+/*!
+    \since 6.11
+    \fn bool QGrpcChannelOptions::operator==(const QGrpcChannelOptions &lhs, const QGrpcChannelOptions &rhs)
+    \include qgrpcchanneloptions.cpp compares
+    equal.
+*/
+
+/*!
+    \since 6.11
+    \fn bool QGrpcChannelOptions::operator!=(const QGrpcChannelOptions &lhs, const QGrpcChannelOptions &rhs)
+    \include qgrpcchanneloptions.cpp compares
+    not equal.
+*/
+
 #ifndef QT_NO_DEBUG_STREAM
 /*!
     \since 6.8
     \fn QDebug QGrpcChannelOptions::operator<<(QDebug debug, const QGrpcChannelOptions &chOpts)
+
     Writes \a chOpts to the specified stream \a debug.
 */
 QDebug operator<<(QDebug debug, const QGrpcChannelOptions &chOpts)
 {
     const QDebugStateSaver save(debug);
     debug.nospace().noquote();
-    debug << "QGrpcChannelOptions(deadline: " << chOpts.deadlineTimeout()
-          << ", metadata: " << chOpts.metadata()
+    debug << "QGrpcChannelOptions(acceptedCompressionAlgorithms: "
+          << chOpts.acceptedCompressionAlgorithms() << ", deadline: " << chOpts.deadlineTimeout()
+          << ", metadata: " << chOpts.metadata(QtGrpc::MultiValue)
+          << ", filterServerMetadata: " << chOpts.filterServerMetadata()
+          << ", maximumReceiveMessageSize: " << chOpts.maximumReceiveMessageSize()
+          << ", requestCompression: " << chOpts.requestCompression()
           << ", serializationFormat: " << chOpts.serializationFormat().suffix()
           << ", sslConfiguration: ";
 #  if QT_CONFIG(ssl)

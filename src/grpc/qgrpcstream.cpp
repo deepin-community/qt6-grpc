@@ -11,29 +11,50 @@ QT_BEGIN_NAMESPACE
     \class QGrpcServerStream
     \inmodule QtGrpc
     \since 6.7
+    \brief The QGrpcServerStream class provides access in handling server-streaming RPCs.
 
-    \brief The QGrpcServerStream class provides the interface to access the
-    server-side gRPC stream functionality from gRPC client side.
+    The QGrpcServerStream class provides the interface for handling
+    server-streaming remote procedure calls (RPCs), which is one of the four
+    \gRPC \l{Service Methods}{service methods}.
 
-    The QGrpcServerStream object is owned by the client object that created it.
+    For a high-level overview, refer to the \l {Server Streaming} {Qt GRPC
+    Client Guide}.
+
+    \include qtgrpc-shared.qdocinc rpc-lifetime-note
 */
 
 /*!
     \fn void QGrpcServerStream::messageReceived()
 
-    The signal is emitted when the stream receives an updated value from server.
+//! [message-received-desc]
+    This signal is emitted when the streaming RPC has received a new message
+    from the server. The read() methods can then be used to deserialize the
+    received message.
+//! [message-received-desc]
 */
 
-QGrpcServerStream::QGrpcServerStream(std::shared_ptr<QGrpcOperationContext> operationContext,
-                                     QObject *parent)
-    : QGrpcOperation(std::move(operationContext), parent)
+/*!
+    \internal
+
+    Constructs a new QGrpcServerStream from QGrpcClientBase.
+
+    This is indirectly called by the generated client interface.
+
+    \sa QGrpcClientBase::serverStream QAbstractGrpcChannel::serverStream
+*/
+QGrpcServerStream::QGrpcServerStream(QLatin1StringView service, QLatin1StringView method,
+                                     const QGrpcCallOptions &options,
+                                     std::weak_ptr<QAbstractGrpcChannel> channel,
+                                     PrivateConstructor /* unused */)
+    : QGrpcOperation({ service, method, QtGrpc::RpcType::ServerStreaming }, options,
+                     std::move(channel))
 {
     QObject::connect(&QGrpcOperation::context(), &QGrpcOperationContext::messageReceived, this,
                      &QGrpcServerStream::messageReceived);
 }
 
 /*!
-    Destroys the QGrpcServerStream object.
+    Destroys the QGrpcServerStream.
 */
 QGrpcServerStream::~QGrpcServerStream() = default;
 
@@ -46,39 +67,61 @@ bool QGrpcServerStream::event(QEvent *event)
     \class QGrpcClientStream
     \inmodule QtGrpc
     \since 6.7
+    \brief The QGrpcClientStream class provides access in handling client-streaming RPCs.
 
-    \brief The QGrpcClientStream class provides the interface to access the
-    client-side gRPC stream functionality from gRPC client side.
+    The QGrpcClientStream class provides the interface for handling
+    client-streaming remote procedure calls (RPCs), which is one of the four
+    \gRPC \l{Service Methods}{service methods}.
+
+    For a high-level overview, refer to the \l {Client Streaming} {Qt GRPC
+    Client Guide}.
+
+    \include qtgrpc-shared.qdocinc rpc-lifetime-note
 */
 
-QGrpcClientStream::QGrpcClientStream(std::shared_ptr<QGrpcOperationContext> operationContext,
-                                     QObject *parent)
-    : QGrpcOperation(std::move(operationContext), parent)
+/*!
+    \internal
+
+    Constructs a new QGrpcClientStream from QGrpcClientBase.
+
+    This is indirectly called by the generated client interface.
+
+    \sa QGrpcClientBase::clientStream QAbstractGrpcChannel::clientStream
+*/
+QGrpcClientStream::QGrpcClientStream(QLatin1StringView service, QLatin1StringView method,
+                                     const QGrpcCallOptions &options,
+                                     std::weak_ptr<QAbstractGrpcChannel> channel,
+                                     PrivateConstructor /* unused */)
+    : QGrpcOperation({ service, method, QtGrpc::RpcType::ClientStreaming }, options,
+                     std::move(channel))
 {
 }
 
 /*!
-    Destroys the QGrpcClientStream object.
+    Destroys the QGrpcClientStream.
 */
 QGrpcClientStream::~QGrpcClientStream() = default;
 
 /*!
+//! [write-message-desc]
     Serializes \a message and sends it to the server.
+//! [write-message-desc]
 */
 void QGrpcClientStream::writeMessage(const QProtobufMessage &message)
 {
-    QByteArray data = QGrpcOperation::context().serializer()->serialize(&message);
-    emit QGrpcOperation::context().writeMessageRequested(data);
+    QGrpcOperation::writeMessage(message);
 }
 
 /*!
     \since 6.8
+//! [writes-done-desc]
     Ends the stream from the client side (half-closing). The server is still allowed to send
     responses after this call.
+//! [writes-done-desc]
 */
 void QGrpcClientStream::writesDone()
 {
-    emit QGrpcOperation::context().writesDoneRequested();
+    QGrpcOperation::writesDone();
 }
 
 bool QGrpcClientStream::event(QEvent *event)
@@ -90,47 +133,65 @@ bool QGrpcClientStream::event(QEvent *event)
     \class QGrpcBidiStream
     \inmodule QtGrpc
     \since 6.7
+    \brief The QGrpcBidiStream class provides access in handling
+    bidirectional-streaming RPCs.
 
-    \brief The QGrpcBidiStream class provides the interface to access the
-    bidirectional gRPC stream functionality from gRPC client side.
+    The QGrpcBidiStream class provides the interface for handling
+    bidirectional-streaming remote procedure calls (RPCs), which is one of the
+    four \gRPC \l{Service Methods}{service methods}.
+
+    For a high-level overview, refer to the \l {Bidirectional Streaming} {Qt
+    GRPC Client Guide}.
+
+    \include qtgrpc-shared.qdocinc rpc-lifetime-note
 */
 
 /*!
     \fn void QGrpcBidiStream::messageReceived()
 
-    The signal is emitted when the stream receives an updated value from server.
+    \include qgrpcstream.cpp message-received-desc
 */
 
-QGrpcBidiStream::QGrpcBidiStream(std::shared_ptr<QGrpcOperationContext> operationContext,
-                                 QObject *parent)
-    : QGrpcOperation(std::move(operationContext), parent)
+/*!
+    \internal
+
+    Constructs a new QGrpcBidiStream from QGrpcClientBase.
+
+    This is indirectly called by the generated client interface.
+
+    \sa QGrpcClientBase::bidiStream QAbstractGrpcChannel::bidiStream
+*/
+QGrpcBidiStream::QGrpcBidiStream(QLatin1StringView service, QLatin1StringView method,
+                                 const QGrpcCallOptions &options,
+                                 std::weak_ptr<QAbstractGrpcChannel> channel,
+                                 PrivateConstructor /* unused */)
+    : QGrpcOperation({ service, method, QtGrpc::RpcType::BidiStreaming }, options,
+                     std::move(channel))
 {
-    QObject::connect(&QGrpcOperation::context(), &QGrpcOperationContext::messageReceived, this,
-                     &QGrpcBidiStream::messageReceived);
+    QObject::connect(&QGrpcOperation::context(), &QGrpcOperationContext::messageReceived,
+                     this, &QGrpcBidiStream::messageReceived);
 }
 
 /*!
-    Destroys the QGrpcBidiStream object.
+    Destroys the QGrpcBidiStream.
 */
 QGrpcBidiStream::~QGrpcBidiStream() = default;
 
 /*!
-    Serializes \a message and sends it to the server.
+    \include qgrpcstream.cpp write-message-desc
 */
 void QGrpcBidiStream::writeMessage(const QProtobufMessage &message)
 {
-    QByteArray data = QGrpcOperation::context().serializer()->serialize(&message);
-    emit QGrpcOperation::context().writeMessageRequested(data);
+    QGrpcOperation::writeMessage(message);
 }
 
 /*!
     \since 6.8
-    Ends the stream from the client side (half-closing). The server is still allowed to send
-    responses after this call.
+    \include qgrpcstream.cpp writes-done-desc
 */
 void QGrpcBidiStream::writesDone()
 {
-    emit QGrpcOperation::context().writesDoneRequested();
+    QGrpcOperation::writesDone();
 }
 
 bool QGrpcBidiStream::event(QEvent *event)

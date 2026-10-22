@@ -4,7 +4,7 @@
 import QtQuick
 import QtTest
 
-import qtprotobufnamespace.tests
+import qtprotobufnamespace.tests.repeated
 
 TestCase {
     name: "qtprotobufRepeatedTest"
@@ -31,8 +31,8 @@ TestCase {
     property complexMessage msg3;
 
     function initTestCase() {
-        msg1.testComplexField = "complexMessage 1"
-        msg2.testComplexField = "complexMessage 2"
+        msg1.testComplexField.testFieldString = "complexMessage 1"
+        msg2.testComplexField.testFieldString = "complexMessage 2"
 
         //TODO: see QTBUG-113690
         rStrMsg.testRepeatedString = ["String", "Second String",
@@ -42,6 +42,7 @@ TestCase {
         rDoubleMsg.testRepeatedDouble = [0, 0.0, 1.23456, 2147483648.09, -17.111]
         rFloatMsg.testRepeatedFloat = [0, 0.0, 1.23456, 214748.09375, -17.111]
         rComplexMsg.testRepeatedComplexData = [msg1, msg2]
+        rComplexMsg.testRepeatedComplex = [msg1, msg2]
         rSIntMsg.testRepeatedInt = [0, 65536, -65536, 2]
         rUIntMsg.testRepeatedInt = [0, 65536, 200, 2]
         rSInt64Msg.testRepeatedInt = [0, 65536, -65536, 2]
@@ -57,25 +58,32 @@ TestCase {
         rInt64Msg.testRepeatedInt = [0, 65536, -65536, 2]
 
         rDoubleMsg.testRepeatedDouble[4] = -4567.111
-        //TODO: see QTBUG-113690
-        rSIntMsg.testRepeatedInt[3] = 5
-        rSInt64Msg.testRepeatedInt[3] = 5
-        rFixedIntMsg.testRepeatedInt[3] = 5
-        rUIntMsg.testRepeatedInt[3] = 5
-        rUInt64Msg.testRepeatedInt[3] = 5
-        rIntMsg.testRepeatedInt[3] = 5
-        rInt64Msg.testRepeatedInt[3] = 5
         rFloatMsg.testRepeatedFloat[4] = -4567.11083984375
         rBoolMsg.testRepeatedBool[4] = false
+        // Assignment to a exact list element causes assert in qmlcachgen.
+        // To be investigated. Skip assginment by now. See QTBUG-131930.
+        // rSIntMsg.testRepeatedInt[3] = 5
+        // rSInt64Msg.testRepeatedInt[3] = 5
+        // rFixedIntMsg.testRepeatedInt[3] = 5
+        // rUIntMsg.testRepeatedInt[3] = 5
+        // rUInt64Msg.testRepeatedInt[3] = 5
+        // rIntMsg.testRepeatedInt[3] = 5
+        // rInt64Msg.testRepeatedInt[3] = 5
     }
 
     function test_repeatedTypes_data() {
         return [
                     // repeatedComplexMessage
-                    { tag: "rComplexMsg.testRepeatedComplex is an object",
+                    { tag: "rComplexMsg.testRepeatedComplexData is an object",
                         field: typeof(rComplexMsg.testRepeatedComplexData), answer: "object" },
-                    { tag: "rComplexMsg.testRepeatedComplex[i] is a string",
+                    { tag: "rComplexMsg.testRepeatedComplexData[i] is a string",
                         field: typeof(rComplexMsg.testRepeatedComplexData[0]), answer: "object" },
+
+                    // repeatedComplexMessage
+                    { tag: "rComplexMsg.testRepeatedComplex is an object",
+                        field: typeof(rComplexMsg.testRepeatedComplex), answer: "object" },
+                    { tag: "rComplexMsg.testRepeatedComplex[i] is a string",
+                        field: typeof(rComplexMsg.testRepeatedComplex[0]), answer: "object" },
 
                     // repeatedStringMessage
                     { tag: "rStrMsg.testRepeatedString is an object",
@@ -151,9 +159,12 @@ TestCase {
 
     function test_repeatedValues_data() {
         return [
-                    // repeatedComplexMessage
+                    // testRepeatedComplexData
                     { tag: "rComplexMsg.testRepeatedComplexData size == 2",
                         field: rComplexMsg.testRepeatedComplexData.length, answer: 2 },
+                    // testRepeatedComplex message
+                    { tag: "rComplexMsg.testRepeatedComplex size == 2",
+                        field: rComplexMsg.testRepeatedComplex.length, answer: 2 },
 
                     // repeatedStringMessage
                     { tag: "rStrMsg.testRepeatedString size == 4",
